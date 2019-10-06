@@ -1,0 +1,42 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+Kategorik Degiskenler ve Olcek Turleri
+```{r}
+
+rutbe <- c("er", "onbasi", "yuzbasi", "binbasi", "albay")
+is.vector(rutbe)
+
+typeof(rutbe)
+
+a <- factor(rutbe, 
+            levels = c("er", "onbasi", "yuzbasi", "binbasi", "albay"), 
+            ordered = TRUE)
+a
+
+
+ordered(rutbe, levels = c("er", "onbasi", "yuzbasi", "binbasi", "albay"))
+
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

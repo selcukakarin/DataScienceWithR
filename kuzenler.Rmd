@@ -1,0 +1,807 @@
+---
+title: "Dogrusal Regresyon ve Kuzenleri"
+output: html_notebook
+editor_options: 
+  chunk_output_type: inline
+---
+
+# 0.Giris ve Kutuphaneler
+
+Kutuphanelerin Kurulmasi
+```{r}
+#Classification And REgression Training
+install.packages("quadprog")
+library(caret)
+library(tidyverse)
+library(AppliedPredictiveModeling)
+library(pls) #kismi en kucuk kareler ve pcr icin
+library(elasticnet)
+library(broom) #tidy model icin
+library(glmnet)
+library(MASS)
+library(ISLR)
+library(PerformanceAnalytics)
+library(funModeling)
+library(Matrix)
+```
+
+
+# 1. Basit Dogrusal Regresyon
+
+## Veriye Ilk Bakis
+
+http://www-bcf.usc.edu/~gareth/ISL/data.html
+
+
+Veri Seti
+```{r}
+library(readr)
+Advertising <- read_csv("Advertising.csv", 
+    col_types = cols(X1 = col_skip()))
+View(Advertising)
+
+df <- Advertising
+
+```
+
+Betimsel Istatistikler
+```{r}
+glimpse(df)
+summary(df)
+profiling_num(df)
+sum(is.na(df))
+```
+
+TV Harcamalari ve Satis Arasindaki Iliski
+```{r}
+plot(sales ~ TV, data = df,
+     pch = 20, cex = 1.5, main = "Satislar vs TV Harcamalari")
+
+```
+
+Tum Degiskenler Icin Scatter Plot
+```{r}
+pairs(df)
+```
+
+Gelismis Scatter Plot
+```{r}
+chart.Correlation(df, histogram =  TRUE, pch = 19)
+
+```
+
+Sadece Bagimli Degiskene Yonelik Scatter Plot
+```{r}
+featurePlot(x = df[ , c("TV", "radio", "newspaper")], y = df$sales)
+
+```
+
+## Model 
+
+Tum Degiskenler Ile Model 
+```{r}
+lm(sales ~ . , data = df)
+summary(lm(sales ~ . , data = df))
+
+```
+
+Anlamsiz Degisken Cikarildiktan Sonra Model 
+```{r}
+lm_model <- lm(sales~ TV + radio, data = df)
+summary(lm_model)
+
+
+```
+
+## Tahmin
+```{r}
+
+#ilk on gozlem
+head(predict(lm_model))
+
+
+#yeni bir gozlem 
+yeni_gozlem <- data.frame(
+  TV = 120, radio = 50
+)
+
+#bagimsiz degiskenlerin degerlerini barindiran yeni gozlemli kullanarak tahminde bulunalim.
+predict(lm_model,yeni_gozlem )
+
+#tahmin edilen deger icin guven araligi 
+predict(lm_model, yeni_gozlem, interval = "confidence")
+
+
+#guven araligini da belirleyebiliriz
+predict(lm_model, yeni_gozlem, interval = "confidence", level = 0.80)
+
+```
+
+## Makine Ogrenmesinin Kilit Konusu: Artiklar
+
+Artiklara Erismek
+```{r}
+#Artiklar
+head(resid(lm_model), 10)
+head(rstudent(lm_model), 10)
+#gercek degerler
+head(df$sales, 10)
+#tahmin edilen degerler
+head(predict(lm_model),10)
+#karsilastirma tablosu
+kar <- data.frame(
+  y = head(df$sales, 10),
+  ysapka = head(predict(lm_model),10)
+  
+)
+
+kar$hata <- kar$y - kar$ysapka
+SSE
+RMSE
+kar$kare <- kar$hata^2
+mean(kar$kare[-6])
+
+df[6,]
+```
+
+
+
+# 2.Coklu Dogrusal Regresyon
+
+## Veri Seti 
+
+
+Veri Seti
+```{r}
+df <- Hitters
+df <- na.omit(df) # verisetinden eksik verilerin bulunduðu kayýtlarý sildik
+glimpse(df)
+rownames(df) <- c()
+
+set.seed(3456)
+train_indeks <- createDataPartition(df$Salary, 
+                                    p = .8, 
+                                    list = FALSE, 
+                                    times = 1)
+head(train_indeks)
+
+# train_indeks içerisindeki veriler train'e atýldý
+train <- df[train_indeks, ]
+# train_indeks dýþýnda kalan veriler teste atýldý %80-%20 oran
+test <- df[-train_indeks, ]
+
+# Salary hariç tüm deðiþkenler seçildi
+train_x <- train %>% dplyr::select(-Salary)
+# Salary seçildi.
+train_y <- train$Salary
+
+
+test_x <- test %>% dplyr::select(-Salary)
+test_y <- test$Salary
+
+
+#tek bir veri seti 
+training <- data.frame(train_x, Salary = train_y)
+
+```
+
+Hizli Bakis
+```{r}
+glimpse(training)
+plot_num(training)
+
+```
+
+
+Tum Degiskenler Icin Scatter Plot
+```{r}
+pairs(df %>% dplyr::select(-c("League","NewLeague","Division")))
+```
+
+Gelismis Scatter Plot
+```{r}
+chart.Correlation(df %>% dplyr::select(-c("League","NewLeague","Division")), histogram=TRUE, pch=19)
+```
+
+
+## Model 
+
+
+```{r}
+lm_fit <- lm(Salary ~ ., data = training)
+#model ciktisi.
+summary(lm_fit)
+#model nesnesi icinden alinabilecekler
+# deðiþkenlerin (kolonlarýn) isimleri çekildi.
+names(lm_fit)
+#caret ile hatalari inceleyelim.
+# MAE = Mean Absolute Error = Mutlak hata ortalamasý
+defaultSummary(data.frame(obs = training$Salary,
+pred = lm_fit$fitted.values)
+)
+
+
+```
+
+
+## Tahmin
+
+Kurulan model ile tahmin yapilacak ve yapilan tahminlerin basarisi test seti kullanilarak degerlendirilecek.
+
+
+Model ile Tahmin
+```{r}
+defaultSummary(data.frame(obs = training$Salary,
+pred = lm_fit$fitted.values)
+)
+
+# kurulan model olan lm_fit'i train_x'e uygula tahmin ediliyor
+head(predict(lm_fit, train_x))
+head(lm_fit$fitted.values)
+```
+
+Test Hatasinin Hesaplanmasi
+```{r}
+defaultSummary(data.frame(obs = test_y,
+pred = predict(lm_fit, test_x))
+)
+
+```
+
+
+
+
+
+## Model Validasyon/Model Tuning
+```{r}
+# trainControl -> caret
+ctrl <- trainControl(method = "cv", 
+                     number = 10)
+
+lm_val_fit <- train(x = train_x, y = train_y,
+      method = "lm",
+      trControl = ctrl)
+
+
+lm_val_fit$results
+
+summary(lm_val_fit)
+names(lm_val_fit)
+lm_val_fit$finalModel
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# 3.Temel Bilesen Regresyonu (Principal Components Regression)
+
+## Model 
+```{r}
+
+# PCR = temel bileþen regresyonu :  Baðýmsýz deðiþkenlerin bir alt kümesini onlarýn içindeki deðiþimi temsil etcek þekilde bileþenlere indirgeyip, bu bileþenlerin üzerine bir regresyon fikrine dayanmaktadýr.
+# PLS : pcr'dan farklý olarak baðýmlý deðiþkenin kovaryansýný kullanarak maksimum bilgi açýklama þekliyle çalýþýr. Bu indirgeme sonucu oluþturduðu bileþenlere regresyon fit eder.
+
+pcr_fit <- pcr(Salary~., data = training,
+    scale = TRUE,
+    validation = "CV")
+
+pcr_fit
+
+summary(pcr_fit)
+# MSEP hata kareler ortalamasý
+validationplot(pcr_fit, val.type = "MSEP")
+
+names(pcr_fit)
+
+defaultSummary(data.frame(obs = training$Salary,
+pred = as.vector(pcr_fit$fitted.values))
+)
+
+
+```
+
+## Tahmin 
+
+```{r}
+# 2 farklý komponent için tahmin yapýldý sanýrým.
+predict(pcr_fit, test_x[1:10,], ncomp = 1:2)
+
+defaultSummary(data.frame(obs = test_y,
+pred = as.vector(predict(pcr_fit, test_x, ncomp = 1:19)))
+)
+
+
+
+```
+
+
+
+
+
+
+## Model Tunning
+
+```{r}
+
+
+ctrl <- trainControl(method = "cv", number = 10)
+set.seed(100)
+# set.seed birden çok kez fonksiyonumuzun çalýþmasý durumunda farklý sonuçlar üretmemesi amaçlý kullanýlýr.
+
+pcr_tune <- train(train_x, train_y,
+                  method = "pcr",
+                  trControl = ctrl,
+                  preProc = c("center", "scale"))
+#preProc metodu ölçeklendirme iþlemi yapmak için kullanýlýr. standardization
+#model ciktisi
+pcr_tune
+# yukarýdaki fonksiyonun çýktýsý üzerinden yorum:
+# burada ncomp = 1 ile kastedilen; denenen 3 bileþen arasýndan sadece 1 bileþen uygulanmasýnýn daha iyi sonuç vereceði ifade edilmiþ
+# Bunun sebebi RMSA( hata kareler ortalamasýnýn karekökü ) deðerinin en küçük deðere sahip olmasýdýr. denmiþtir. Fakat güvenilir olmayabilir
+
+pcr_tune <- train(train_x, train_y,
+                  method = "pcr",
+                  trControl = ctrl,
+                  tuneLength = 20,
+                  preProc = c("center", "scale"))
+# tuneLength maksimum 20 bileþen dene demektir
+
+pcr_tune
+
+plot(pcr_tune)
+# yukarýdaki method ile çizilen grafik deðiþken sayýsýnýn deðiþmesine baðlý olarak RMSA deðerlerinin nasýl deðiþtiði ifade edilmiþtir.
+
+pcr_tune$finalModel
+
+```
+
+Model Test Hatasi
+```{r}
+
+defaultSummary(data.frame(obs = test_y,
+pred = as.vector(predict(pcr_tune, test_x)))
+)
+
+```
+
+
+
+
+# 4.Kismi En Kucuk Kareler Regresyonu 
+(Partial Least Squares)
+
+
+pls kutuphanesi kismi en kucuk kareler regresyonu ve temel bilesen regresyonu icin fonksiyonlar sagliyor. 2007 yilinda Mevik ve Wehrens isimli dunya vatandaslarinda yazilmis.
+
+
+pls kutuphanesi on tanimli olarak Dayal ve MacGregor'un 1994, kernel algoritmasini kullaniliyor. method argumani ile bu algoritma degistirilebilir. 
+
+## Model 
+
+```{r}
+# pls ile pcr arasýndaki fark
+# pcr'da baðýmsýz deðiþkenler arasýnda bir indirgeme vardýr
+# pls'de ise baðýmlý deðiþkenin kovaryansýna göre bir indirgeme vardýr
+pls_fit <- plsr(Salary~., data  = training)
+
+summary(pls_fit)
+
+validationplot(pls_fit, val.type = "MSEP")
+# MSEP hata kareler ortalamasý
+
+names(pls_fit)
+
+
+```
+
+## Tahmin 
+
+
+```{r}
+
+predict(pls_fit, test_x[1:10,], ncomp = 1:2)
+defaultSummary(data.frame(obs = test_y,
+pred = as.vector(predict(pls_fit, test_x)))
+)
+
+```
+
+
+
+## Model Tuning 
+
+```{r}
+
+
+ctrl <- trainControl(method = "cv", number = 10)
+set.seed(100)
+
+
+pls_tune <- train(train_x, train_y,
+                  method = "pls",
+                  trControl = ctrl,
+                  tuneLength = 20,
+                  preProc = c("center", "scale"))
+
+plot(pls_tune)
+
+pls_tune$results
+
+
+defaultSummary(data.frame(obs = test_y,
+pred = as.vector(predict(pls_tune, test_x)))
+)
+
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+# 5.Ridge Regresyon
+
+MASS'ta yer alan lm.ridge 
+elasticnet'te yer alan enet
+ya da glmnet 
+
+
+## Model
+```{r}
+
+train_x_x <- train_x %>% dplyr::select(-c("League","NewLeague","Division"))
+
+rigde_fit <- glmnet(as.matrix(train_x_x), y= train_y,
+                    alpha = 0)
+
+rigde_fit
+summary(rigde_fit)
+names(rigde_fit)
+rigde_fit$beta
+
+
+plot(rigde_fit, xvar = "lambda", label = TRUE)
+min(log(rigde_fit$lambda))
+```
+
+Dogru Lambda Icin CV'nin Kullanilmasi
+```{r}
+
+ridge_cv_fit <- cv.glmnet(as.matrix(train_x_x), y= train_y,
+                    alpha = 0)
+
+plot(ridge_cv_fit)
+
+
+# 1se'ye karsýlýk gelen lambda deðeri
+ridge_cv_fit$lambda.1se
+
+#lambda.min'e karþýlýk gelen lambda deðeri
+coef(ridge_cv_fit,"lambda.min")
+
+coef(ridge_cv_fit)
+
+
+tidy(ridge_cv_fit)
+
+
+```
+
+
+## Tahmin 
+```{r}
+
+test_x_x <- test_x %>% dplyr::select(-c("League","NewLeague","Division"))
+
+
+defaultSummary(data.frame(obs = test_y,
+pred = as.vector(predict(ridge_cv_fit, as.matrix(test_x_x), s = "lambda.min")))
+)
+
+
+```
+
+
+## Model Tuning 
+```{r}
+
+ctrl <- trainControl(method = "cv", number = 10)
+set.seed(100)
+
+ridge_grid <- data.frame(
+  lambda = seq(0, 5000, length = 100)
+)
+
+
+ridge_tune <- train(train_x_x, train_y,
+                  method = "ridge",
+                  trControl = ctrl,
+                  tuneGrid = ridge_grid,
+                  preProc = c("center", "scale"))
+
+plot(ridge_tune)
+
+ridge_tune$results %>% filter(lambda == as.numeric(ridge_tune$bestTune))
+
+
+ridge_tune$finalModel
+
+
+
+defaultSummary(data.frame(obs = test_y,
+pred = as.vector(predict(ridge_tune, as.matrix(test_x_x))))
+)
+
+
+
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# 6.Lasso Regresyon
+
+## Model
+```{r}
+
+train_x_x <- train_x %>% dplyr::select(-c("League","NewLeague","Division"))
+
+lasso_fit <- glmnet(as.matrix(train_x_x), y= train_y,
+                    alpha = 1)
+
+lasso_fit
+names(lasso_fit)
+lasso_fit$beta
+
+
+plot(lasso_fit, xvar = "lambda", label = TRUE)
+
+tidy(lasso_fit)
+
+lasso_fit$beta
+
+```
+
+Lambda Secimi icin CV Kullanilmasi
+```{r}
+
+lasso_cv_fit <- cv.glmnet(as.matrix(train_x_x), 
+                          y= train_y,
+                    alpha = 1)
+
+plot(lasso_cv_fit)
+
+
+ridge_cv_fit$lambda.1se
+
+coef(lasso_cv_fit)
+
+glance(lasso_cv_fit)
+
+
+
+```
+
+
+
+## Tahmin
+```{r}
+
+test_x_x <- test_x %>% dplyr::select(-c("League","NewLeague","Division"))
+
+
+defaultSummary(data.frame(obs = test_y,
+pred = as.vector(predict(lasso_cv_fit, as.matrix(test_x_x))))
+)
+
+
+
+
+```
+
+
+
+
+## Model Tunning
+
+```{r}
+
+
+
+
+ctrl <- trainControl(method = "cv", number = 10)
+set.seed(100)
+
+lasso_grid <- data.frame(
+  fraction = seq(.05, 1, length = 20)
+)
+
+
+lasso_tune <- train(train_x_x, train_y,
+                  method = "lasso",
+                  trControl = ctrl,
+                  tuneGrid = lasso_grid,
+                  preProc = c("center", "scale"))
+
+plot(lasso_tune)
+
+lasso_tune$results %>% filter(fraction == as.numeric(lasso_tune$bestTune))
+
+
+lasso_tune$finalModel
+
+
+
+defaultSummary(data.frame(obs = test_y,
+pred = as.vector(predict(lasso_tune, as.matrix(test_x_x))))
+)
+
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# 7.ElasticNet Regresyonu
+
+lars kutuphanesindeki lars, 
+elasticnet'te enet,
+glmnet'te glmnet
+
+
+## Model
+
+```{r}
+
+enet_fit <- enet(x = as.matrix(train_x_x), y = train_y, 
+     lambda = 1,
+     normalize = TRUE)
+
+
+```
+
+
+## Tahmin 
+
+```{r}
+
+predict(enet_fit, newx = as.matrix(test_x_x), s = 1, mode = "fraction", type = "fit")
+
+predict(enet_fit, newx = as.matrix(test_x_x), s = .1, mode = "fraction", type = "coefficients")
+
+
+```
+
+## Model Tuning 
+```{r}
+
+ctrl <- trainControl(method = "cv", number = 10)
+set.seed(100)
+
+enet_grid <- data.frame(
+  lambda = seq(0, 0.01, length = 20),
+  
+  fraction = seq(0.05, 1, length = 20)
+)
+
+
+enet_tune <- train(train_x_x, train_y,
+                  method = "enet",
+                  trControl = ctrl,
+                  tuneGrid = enet_grid,
+                  preProc = c("center", "scale"))
+
+
+plot(enet_tune)
+
+
+enet_tune$results %>% filter(fraction == as.numeric(enet_tune$bestTune))
+
+
+defaultSummary(data.frame(obs = test_y,
+pred = as.vector(predict(enet_tune, as.matrix(test_x_x))))
+)
+
+
+
+
+
+```
+
+
+
+
+Kaynaklar: 
+
+Applied Predictive Modeling
+Max Kuhn, Kjell Johnson
+
+R for Data Science 
+Hadley Wickham
+
+Statistical Learning 
+Trevor Hastie, Robert Tibshirani, Jerome Friedman
+
+Yapay Ogrenme
+Ethem Alpaydin
+
+Data Mining Applications with R
+Yanchang Zhao, Yonghua Cen
+
+Sheldon Ross
+Introductory Statistics
+
+Sheldon Ross
+A First Course in Probability
+
+Machine Learning - Coursera
+Andrew Ng
+
+R Programming for Data Science
+Roger D. Peng
+
+Kavram Ve Algoritmalariyla Temel Veri Madenciligi
+Gokhan Silahtaroglu
+
+Data Veri Madenciligi - Veri Analizi
+Haldun Akpinar
+
+Cok Degiskenli Istatistiksel Yontemler
+Reha ALPAR
+
+University of Cincinnati R Notlari
+
+
+
+

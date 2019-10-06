@@ -1,0 +1,19 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+Liste
+```{r}
+
+L <- list("Super", "Evren", 1:1000, FALSE)
+
+L <- list(L,L)
+
+a <- list(1:10)
+a <- unlist(a)
+a
+
+
+```
+

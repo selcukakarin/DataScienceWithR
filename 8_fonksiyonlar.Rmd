@@ -1,0 +1,47 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+Fonksiyonlar ve Fonksiyon Okuryazarligi
+```{r}
+
+kare <- function(x) {
+  
+  x^2
+  
+}
+
+
+kare_ve_carpma <- function(x, y = 1) {
+  
+  x^2*y
+  
+}
+
+kare_ve_carpma(9)
+
+
+kare(9)
+
+
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

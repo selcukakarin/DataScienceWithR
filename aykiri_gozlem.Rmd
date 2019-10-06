@@ -1,0 +1,453 @@
+---
+title: "R Notebook"
+output: html_notebook
+editor_options: 
+  chunk_output_type: console
+---
+# Aykiri Gozlem Analizi
+
+# Box-Plot ile Aykiri Gozlemlerin Yakalanmasi
+## Aykiri Gozlem Indekslerinin Bulunmasi
+## Iki Degiskende Kesisen Aykiri Gozlemler
+## Iki Degiskendeki Tum Aykiri Gozlemler
+
+```{r}
+set.seed(54)
+#normal dağılımlı bir kitleden 100 tane değer alıyoruz
+veri <- rnorm(100)
+summary(veri)
+# veriye suni olarak aykırı gözlemler ekliyoruz
+veri <- c(veri, c(4,5,6))
+# görselleştirdik
+boxplot(veri)
+# aykırı gözlemleri aldık
+boxplot.stats(veri)$out
+
+# aykırı gözlemlerin indekslerini aldık
+which(veri %in% boxplot.stats(veri)$out)
+
+
+
+
+set.seed(54)
+x <- rnorm(100)
+x <- c(x, c(4,5,6))
+
+set.seed(455)
+y <- rnorm(100)
+y  <- c(y, c(4,5,6))
+
+df <- data.frame(x, y)
+
+# x ve y değişkenindeki eksik gözlemlerin indekslerini aldık
+a <- which(df$x %in% boxplot.stats(df$x)$out)
+b <- which(df$y %in% boxplot.stats(df$y)$out)
+# hem a değişkeninde hem b değişkeninde ortak olan aykırı gözlemleri tespit ettik
+intersect(boxplot.stats(df$x)$out, boxplot.stats(df$y)$out)
+# tespit edilen ortak aykırı gözlemlerin indeksleri bulundu
+ortak <- intersect(a,b)
+plot(df)
+# iki değişkendeki kesişen aykırılıklar
+points(df[ortak, ], col = "red", pch = "+", cex = 2.5)
+# her iki değişkendeki aykırı gözlemler
+ortak_tum <- union(a,b)
+points(df[ortak_tum, ], col = "red", pch = "+", cex = 2.5)
+
+
+
+```
+
+
+
+# Aykiri Gozlem Problemini Cozmek
+
+## Silmek
+```{r}
+set.seed(54)
+x <- rnorm(100)
+x <- c(x, c(4,5,6))
+
+set.seed(455)
+y <- rnorm(100)
+y  <- c(y, c(4,5,6))
+
+df <- data.frame(x, y)
+
+
+ortak_tum <- union(a,b)
+
+summary(df[-ortak_tum,])
+
+```
+
+## Aykiri Gozlemlerin Ortalama ile Doldurulmasi
+```{r}
+set.seed(54)
+x <- rnorm(100)
+x <- c(x, c(4,5,6))
+
+set.seed(455)
+y <- rnorm(100)
+y  <- c(y, c(4,5,6))
+
+df <- data.frame(x, y)
+# x ve y değişkenindeki eksik gözlemlerin indekslerini aldık
+a <- which(df$x %in% boxplot.stats(df$x)$out)
+b <- which(df$y %in% boxplot.stats(df$y)$out)
+# aykırı gözlemlerin indeksleri ile değerlerine ulaştık
+df[a, ]$x
+# aykırı gözlemleri ortalama değer ile değiştirdik
+df[a, ]$x <- mean(df$x)
+summary(df$x)
+
+
+
+```
+
+
+
+## Aykiri Gozlemlerin Baskilanmasi
+```{r}
+set.seed(54)
+x <- rnorm(100)
+x <- c(x, c(4,5,6))
+
+set.seed(455)
+y <- rnorm(100)
+y  <- c(y, c(4,5,6))
+
+df <- data.frame(x, y)
+# x ve y değişkenindeki eksik gözlemlerin indekslerini aldık
+a <- which(df$x %in% boxplot.stats(df$x)$out)
+b <- which(df$y %in% boxplot.stats(df$y)$out)
+summary(df$x)
+# fivenum(df$x) summary fonksiyonundaki değişkenlere başlıkları olmadan ulaşmamızı sağlar
+# aykırı gözlemlerin indeksleri ile değerlerine ulaştık
+df[a, ]$x
+# aykırı gözlemlere 3rd quarter daki ortalaa değerini atadık
+df[a, ]$x <- fivenum(df$x)[4]
+# aykırı gözlemlerin indeksleri ile değerlerine ulaştık
+df[a, ]$x
+
+```
+
+
+
+## Aykiri Gozlemlerin Tahminle Doldurulmasi
+```{r}
+set.seed(54)
+x <- rnorm(100)
+x <- c(x, c(4,5,6))
+
+set.seed(455)
+y <- rnorm(100)
+y  <- c(y, c(4,5,6))
+
+df <- data.frame(x, y)
+# x ve y değişkenindeki eksik gözlemlerin indekslerini aldık
+a <- which(df$x %in% boxplot.stats(df$x)$out)
+b <- which(df$y %in% boxplot.stats(df$y)$out)
+# hem a daki hem b deki aykırı gözlemlere ulaştık
+ortak_tum <- union(a,b)
+
+df[ortak_tum,]
+# x değişkenindeki aykırı gözlemlere a indekleri ile ulaşıp NA değerini atadık
+df[a, ]$x <- NA
+df[b, ]$y <- NA
+summary(df)
+# yapmış olduğumuz aykırı atamaları ile 103 gözleme ulaştık
+# dataframemizin yanına  normal dağılımlı 3 adet değişken ekledik
+df_all <- data.frame(df, rnorm(103), rnorm(103),rnorm(103))
+# aykırı gözlemleri randomforest ile doldurmuş olduk
+rf_data <- missForest(df_all)
+rf<- rf_data$ximp
+summary(rf)
+
+```
+
+
+
+
+# Cok Degiskenli Aykiri Gozlem Incelemesi
+
+# Local Outlier Factor 
+
+## Aykiri Gozlem Skorlarinin Hesaplanmasi
+
+```{r}
+# Local Outlier Factor fonksiyonu bir gözlemin bulunduğu pozisyondaki local yoğunluğun bir sonraki gözlemle karşılaştırıldığı zaman anlamlı bir yoğunluk farkı var mı yok mu diye kontrol eder. Buna göre aykırı gözlemleri bulur.
+#install.packages("DMwR")
+library(DMwR)
+iris
+str(iris)
+summary(iris)
+# local outlier factor sadece numeric verilerle çalıştığı için verisetini sadece numeric olarak düzenledik
+df <- iris[ ,1:4]
+# k = komus sayısı
+aykiri_skor <- lofactor(df, k = 5)
+# aykırı gözlemlerin yoğunluklarını görselleştirdik
+plot(density(aykiri_skor))
+
+```
+
+## Aykiri Gozlem Indekslerine Erismek
+
+```{r}
+# aykırı gözlem olarak görülen ilk 5 değerin indekslerine ulaştık
+order(aykiri_skor, decreasing = T)[1:5]
+
+```
+
+## Aykiri Gozlem Degerlerine Erismek
+
+```{r}
+# aykırı gözlem olarak görülen ilk 5 değerin indekslerine ulaştık
+aykirilar <- order(aykiri_skor, decreasing = T)[1:5]
+# aykırı gözlem olarak görülen ilk 5 değere ulaştık
+print(df[aykirilar,])
+
+
+```
+
+
+
+
+# Cok Degiskenli Veri Icerisinde Aykirilari Gorsellestirilmesi
+
+```{r}
+df <- iris[ ,1:4]
+n <- nrow(df)
+etiketler <- 1:n
+
+aykirilar <- order(aykiri_skor, decreasing = T)[1:5]
+# aykırı gözlemler haricindeki diğer değerlere . girildi
+etiketler[-aykirilar] <- "." 
+
+biplot(prcomp(df), cex = 1, xlabs = etiketler)
+
+
+```
+
+
+
+# Korelasyon Matrisinde Aykirilari Isaretlemek
+
+```{r}
+# korelasyon matrisi değişkenlerin birbirleriyle olan ilişkisini gösterir
+pch <- rep(".", n) 
+pch
+
+
+pch[aykirilar] <- "+"
+pch
+
+
+col <- rep("black", n)
+col
+
+
+col[aykirilar] <- "red"
+
+
+pairs(df, pch = pch, col = col)
+
+
+```
+
+
+
+
+
+
+# Kumeleme Yontemi Ile Aykiri Gozlem Analizi
+## Aykiri Gozlemlere Erismek
+
+```{r}
+df <- iris[,1:4]
+
+k_ort <- kmeans(df, centers = 3)
+plot(df, col = k_ort$cluster)
+
+k_ort$centers
+k_ort$cluster
+
+merkez_df <- k_ort$centers[k_ort$cluster,]
+uzakliklar <- sqrt(rowSums(df, merkez_df)^2)
+
+aykirilar <- order(uzakliklar, decreasing = T)[1:10]
+print(df[aykirilar,])
+
+```
+
+
+## Aykiri Gozlemleri Gorsellestirmek
+
+```{r}
+# kumelerin gorsellestirilmesi
+plot(df[ ,c("Sepal.Length", "Sepal.Width")], 
+     pch = ".", col = k_ort$cluster, 
+     cex = 6)
+
+
+#merkezlerin gorsellestirilmesi
+points(k_ort$centers[ ,c("Sepal.Length", "Sepal.Width")], 
+       col = 1:3, 
+       pch = 8, 
+       cex = 3)
+
+points(k_ort$centers[ ,c("Sepal.Length", "Sepal.Width")], 
+       col = 1:3, 
+       pch = 9, 
+       cex = 4)
+
+points(df[aykirilar, c("Sepal.Length", "Sepal.Width")], 
+       pch="+", 
+       col=4, 
+       cex=3)
+
+
+
+
+```
+
+
+
+
+
+
+# ODEV - AYKIRI GOZLEM
+
+
+1. Asagidaki veri setine 2 merkezli kmeans uygulayiniz.
+2. Veri setindeki gozlemleri merkezleri ile birlikte ifade edip "merkez_df" isimli yeni bir veri seti  olusturunuz.
+3. Uzakliklari hesaplayiniz.
+4. Aykiri degerlerin 5 tanesine erisiniz.
+5. Aykiri gozlemleri gorsellestiriniz ve gorseli masaustune kaydediniz.
+5. Erismis oldugunuz indeksleri NA ile doldurunuz.
+6. Random Forests ile NA ifadelerini tahmin ederek doldurunuz.
+7. Random Forests sonrasi olusan nesnenin icerisinden veri setini seciniz.
+8. Yeni veri setinin kmeans ile gorselini olusturunuz.
+9. Olusan iki grafigi karsilastirarak yorumlayiniz.
+
+
+```{r}
+df <- iris[,1:4]
+```
+
+
+
+```{r}
+df <- iris[,1:4]
+k_ort <- kmeans(df, centers=2)
+merkez_df <- k_ort$centers[k_ort$cluster, ] 
+uzakliklar <- sqrt(rowSums((df - merkez_df)^2))
+aykirilar <- order(uzakliklar, decreasing=T)[1:5]
+
+#gorsel
+plot(df[ ,c("Sepal.Length", "Sepal.Width")], 
+     pch = ".", col = k_ort$cluster, 
+     cex = 6)
+
+points(k_ort$centers[ ,c("Sepal.Length", "Sepal.Width")], 
+       col = 1:3, 
+       pch = 8, 
+       cex = 3)
+
+points(k_ort$centers[ ,c("Sepal.Length", "Sepal.Width")], 
+       col = 1:3, 
+       pch = 9, 
+       cex = 4)
+
+points(df[aykirilar, c("Sepal.Length", "Sepal.Width")], 
+       pch="+", 
+       col=4, 
+       cex=3)
+
+
+#degisken degisken indekslere erismek
+df[aykirilar, "Sepal.Length"]
+df[aykirilar, "Sepal.Width"]
+df[aykirilar, "Petal.Length"]
+df[aykirilar, "Petal.Width"]
+
+
+#NA basmak
+df[aykirilar, "Sepal.Length"] <- NA
+df[aykirilar, "Sepal.Width"] <- NA
+df[aykirilar, "Petal.Length"] <- NA
+df[aykirilar, "Petal.Width"] <- NA
+df[aykirilar,]
+
+#tahmin etme
+rf_data <- missForest(df)
+rf_data <- rf_data$ximp
+rf_data
+rf_data[aykirilar,]
+
+
+#yeni gorsel
+k_ort <- kmeans(rf_data, centers=2)
+merkez_df <- k_ort$centers[k_ort$cluster, ] 
+uzakliklar <- sqrt(rowSums((rf_data - merkez_df)^2))
+aykirilar <- order(uzakliklar, decreasing=T)[1:10]
+
+plot(rf_data[ ,c("Sepal.Length", "Sepal.Width")], 
+     pch = ".", col = k_ort$cluster, 
+     cex = 6)
+
+points(k_ort$centers[ ,c("Sepal.Length", "Sepal.Width")], 
+       col = 1:3, 
+       pch = 8, 
+       cex = 3)
+
+points(k_ort$centers[ ,c("Sepal.Length", "Sepal.Width")], 
+       col = 1:3, 
+       pch = 9, 
+       cex = 4)
+
+points(rf_data[aykirilar, c("Sepal.Length", "Sepal.Width")], 
+       pch="+", 
+       col=4, 
+       cex=3)
+
+```
+
+
+
+Kaynaklar: 
+
+Applied Predictive Modeling
+Max Kuhn, Kjell Johnson
+
+R for Data Science 
+Hadley Wickham
+
+Statistical Learning 
+Trevor Hastie, Robert Tibshirani, Jerome Friedman
+
+Yapay Ogrenme
+Ethem Alpaydin
+
+Data Mining Applications with R
+Yanchang Zhao, Yonghua Cen
+
+Sheldon Ross
+Introductory Statistics
+
+Sheldon Ross
+A First Course in Probability
+
+Machine Learning - Coursera
+Andrew Ng
+
+R Programming for Data Science
+Roger D. Peng
+
+Kavram Ve Algoritmalariyla Temel Veri Madenciligi
+Gokhan Silahtaroglu
+
+Data Veri Madenciligi - Veri Analizi
+Haldun Akpinar
+
+Cok Degiskenli Istatistiksel Yontemler
+Reha ALPAR

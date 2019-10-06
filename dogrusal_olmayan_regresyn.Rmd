@@ -1,0 +1,1300 @@
+---
+title: "R Notebook"
+output: html_notebook
+editor_options: 
+  chunk_output_type: console
+---
+
+
+# KNN
+
+Kutuphaneler
+```{r}
+#Classification And REgression Training
+install.packages("FNN")
+library(caret)
+library(tidyverse)
+library(AppliedPredictiveModeling)
+library(pls) #kismi en kucuk kareler ve pcr icin
+library(elasticnet)
+library(broom) #tidy model icin
+library(glmnet)
+library(MASS)
+library(ISLR)
+library(PerformanceAnalytics)
+library(funModeling)
+library(Matrix) 
+library(kernlab) #svm
+library(e1071) #svm icin
+library(rpart) #cart icin
+library(pgmm) #olive data seti icin 
+library(dslabs)
+library(rpart.plot) #rpart gorsel icin
+library(partykit) #karar agaci gorseli icin 
+library(ipred) #bagging icin 
+library(randomForest)
+library(gbm)
+library(nnet)
+library(neuralnet)
+library(GGally)
+library(NeuralNetTools) #garson fonksiyonu icin
+library(FNN)
+
+
+
+```
+
+## Veri Seti
+```{r}
+df <- Hitters
+# eksik veri olan kayýtlarý sildik
+df <- na.omit(df)
+# "League","NewLeague","Division" deðiþkenlerini verisetinden kaldýrdýk
+df <- df %>% dplyr::select(-c("League","NewLeague","Division"))
+
+rownames(df) <- c()
+
+set.seed(3456)
+train_indeks <- createDataPartition(df$Salary, 
+                                    p = .8, 
+                                    list = FALSE, 
+                                    times = 1)
+head(train_indeks)
+
+train <- df[train_indeks, ]
+test <- df[-train_indeks, ]
+train_x <- train %>% dplyr::select(-Salary)
+train_y <- train$Salary
+test_x <- test %>% dplyr::select(-Salary)
+test_y <- test$Salary
+
+#tek bir veri seti 
+training <- data.frame(train_x, Salary = train_y)
+```
+
+## Model 
+```{r}
+knn_fit <- knn.reg(train = train_x, 
+                   test = test_x, 
+                   y = train_y, 
+                   k = 2)
+
+names(knn_fit)
+# knn ile k=2 modeli ile tahmin yaptýk
+head(knn_fit$pred)
+head(test_y)
+```
+
+
+## Tahmin 
+```{r}
+knn_fit <- knn.reg(train = train_x, 
+                   test = test_x, 
+                   y = train_y, 
+                   k = 2)
+# test hatasýný bulduk
+defaultSummary(data.frame(obs = test_y, pred = knn_fit$pred))
+```
+
+
+## Model Tuning
+```{r}
+# 10 katlý cross validation uygulandý
+ctrl <- trainControl(method = "cv", number = 10)
+
+knn_grid <- data.frame(k = 1:20)
+
+knn_tune <- train(train_x, train_y,
+                  method = "knn",
+                  trControl = ctrl,
+                  tuneGrid = knn_grid,
+                  preProc = c("center", "scale"))
+
+
+plot(knn_tune)
+
+knn_tune$finalModel
+# knn tune olarak deðiþen model test edildi
+defaultSummary(data.frame(obs = test_y,
+pred = predict(knn_tune, test_x)))
+```
+
+
+#SVR
+
+## Model
+```{r}
+# x_train'den y train'i öðrendik
+svm_fit <- svm(train_x, train_y)
+names(svm_fit)
+```
+
+## Tahmin
+```{r}
+head(predict(svm_fit, test_x))
+head(test_y)
+defaultSummary(data.frame(obs = test_y,
+pred = predict(svm_fit, test_x)))
+```
+
+
+## Model Tunning
+```{r}
+ctrl <- trainControl(method = "cv", number = 10)
+
+svm_tune <- train(train_x, train_y,
+                  method = "svmRadial",
+                  trControl = ctrl,
+                  tuneLength = 14,
+                  preProc = c("center", "scale"))
+
+plot(svm_tune)
+
+svm_tune$finalModel
+
+defaultSummary(data.frame(obs = test_y,
+pred = predict(svm_tune, test_x)))
+```
+
+
+
+# YSA
+
+## Veri Seti ve Hazirlik
+
+Yat hidrodinamigine ait  veri seti.
+
+http://archive.ics.uci.edu/ml/datasets/Yacht+Hydrodynamics
+
+```{r}
+dff <- read_table(file = 'http://archive.ics.uci.edu/ml/machine-learning-databases/00243/yacht_hydrodynamics.data',
+col_names = c('longpos_cob', 
+              'prismatic_coeff', 
+              'len_disp_ratio', 
+              'beam_draut_ratio', 
+              'length_beam_ratio',
+              'froude_num', 
+              'residuary_resist')) 
+  
+```
+
+
+Veri Setine Goz Atmak
+```{r}
+glimpse(dff)
+profiling_num(dff)
+ggpairs(dff)
+mean(dff$residuary_resist)
+```
+
+
+```{r}
+# yapay sinir aðlarýný kullanmadan önce içerisinde kullanýlacak deðiþkenler ölçeklendirilir
+olcek <- function(x) {
+  
+  (x-min(x)) / (max(x) - min(x))
+  
+}
+
+df <- na.omit(dff)
+# ölçekleme uygulandý
+df <- df %>% mutate_all(olcek)
+
+set.seed(3456)
+train_indeks <- createDataPartition(df$residuary_resist, 
+                                  p = .8, 
+                                  list = FALSE, 
+                                  times = 1)
+
+
+train <- df[train_indeks,]
+test  <- df[-train_indeks,]
+
+
+train_x <- train %>% dplyr::select(-residuary_resist)
+train_y <- train$residuary_resist
+test_x <- test %>% dplyr::select(-residuary_resist)
+test_y <- test$residuary_resist
+
+
+#tek bir veri seti
+training <- data.frame(train_x, residuary_resist = train_y)
+
+df
+```
+
+## Model
+
+1 Katmanli 1 Norunlu Basit Yapay Sinir Hucresi
+```{r}
+
+#model formulu
+ysa_formul <- residuary_resist ~ longpos_cob + prismatic_coeff + len_disp_ratio + beam_draut_ratio + length_beam_ratio + froude_num
+
+ysa1 <- neuralnet(ysa_formul, data = training)
+
+
+plot(ysa1)
+
+ysa1$result.matrix
+
+```
+
+Katman ve Noron Sayisinin Arttirilmasi
+```{r}
+
+# hidden = 5 5 sinirli bir gizli katman oluþturuldu
+# hidden = c(5,1,2)
+plot(neuralnet(ysa_formul, data = training, 
+               hidden = 5),rep =  "best")
+
+
+ysa2 <- neuralnet(ysa_formul, data = training, 
+               hidden = 5)
+
+ysa3 <- neuralnet(ysa_formul, data = training, 
+               hidden = c(3,2))
+
+
+```
+
+
+## Degisken Onem ve Etki Duzeyleri
+
+```{r}
+# baðýmsýz deðiþkenlerin etki düzeylerini deðerlendirmek için kullanýlan iki metod
+# quartile ( çeyreklik ) 'lar ile baðýmsýz deðiþkenlerin baðýmlý deðiþken üzerindeki etkisini ölçer
+garson(ysa2)
+
+lekprofile(ysa2)
+
+```
+
+
+
+
+olceklendirmeyi Geri Almak
+```{r}
+# ysa ile bir model oluþturmak için verileri standartlaþtýrmýþtýk fakat verileri bu model ile tahmin ederken standartlaþtýrýlmýþ verileri normal haline çevirmek gerekmektedir
+# bunun için atamalarý yeniden yaptýk
+
+dff <- read_table(file = 'http://archive.ics.uci.edu/ml/machine-learning-databases/00243/yacht_hydrodynamics.data',
+col_names = c('longpos_cob', 
+              'prismatic_coeff', 
+              'len_disp_ratio', 
+              'beam_draut_ratio', 
+              'length_beam_ratio',
+              'froude_num', 
+              'residuary_resist')) 
+
+dff <- na.omit(dff)
+set.seed(3456)
+train_indeks <- createDataPartition(dff$residuary_resist, 
+                                  p = .8, 
+                                  list = FALSE, 
+                                  times = 1)
+
+
+train <- dff[train_indeks,]
+test  <- dff[-train_indeks,]
+
+
+train_x <- train %>% dplyr::select(-residuary_resist)
+train_y <- train$residuary_resist
+test_x <- test %>% dplyr::select(-residuary_resist)
+test_y <- test$residuary_resist
+
+
+#tek bir veri seti
+training <- data.frame(train_x, residuary_resist = train_y)
+```
+
+
+
+## Tahmin
+
+```{r}
+defaultSummary(data.frame(obs = test_y, 
+                          pred = predict(ysa1, test_x)))
+```
+
+
+
+## Model Tuning
+
+```{r message=FALSE, warning=FALSE}
+
+#Multi-Layer Perceptron
+ctrl <- trainControl(method = "cv", number = 10)
+ 
+# size gizli katman sayýsý
+ysa_grid <- expand.grid(
+            decay = c(0.001,0.01, 0.1),
+            size =  (1:10))
+
+ysa_tune <- train(train_x, train_y,
+                  method = "mlpWeightDecay",
+                  trControl = ctrl,
+                  tuneGrid = ysa_grid,
+                  preProc = c("center", "scale"))
+
+plot(ysa_tune)
+
+ysa_tune$bestTune
+
+defaultSummary(data.frame(obs = test_y,
+pred = predict(ysa_tune, test_x)))
+
+```
+
+
+
+
+
+
+
+# CART 
+
+Regresyon Agaclari
+
+
+## Veri Seti
+
+
+Veri Seti
+```{r}
+df <- Advertising
+df = df[,2:length(df)]
+```
+
+## Model Kurma
+```{r}
+cart_tree <- rpart(sales ~ TV, data = df)
+
+names(cart_tree)
+# deðiþkenlerin önem sýralarýný belirledik
+cart_tree$variable.importance
+
+plot(cart_tree, margin = 0.1)
+text(cart_tree, cex = 0.5)
+prp(cart_tree, type = 4)
+rpart.plot(cart_tree)
+plotcp(cart_tree)
+
+```
+
+Eksenlerde Gosterim
+```{r}
+
+df %>% mutate(y_sapka = predict(cart_tree)) %>%
+  ggplot() +
+  geom_point(aes(TV, sales)) +
+  geom_step(aes(TV, y_sapka), col = "red")
+
+
+```
+
+
+Karmasiklik Parametresi ve minsplitit 
+```{r}
+# mevcut yapýyý tanýmlamak için en iyi yol CART'týr
+# cp = ne kadar dallanma olacaðýný gösteren parametre
+# min_split = dallanma sonucu ortaya çýkan yapraklarda kalacak olan gözlem sayýsýdýr
+cart_tree <- rpart(sales ~ TV, data = df,
+                   control = rpart.control(cp = 0.06, 
+                                           minsplit = 3))
+
+df %>% mutate(y_sapka = predict(cart_tree)) %>%
+  ggplot() +
+  geom_point(aes(TV, sales)) +
+  geom_step(aes(TV, y_sapka), col = "red")
+
+
+```
+
+Agacin Budanmasi
+```{r}
+
+prune_cart <- prune(cart_tree, cp = 0.01)
+
+
+df %>% mutate(y_sapka = predict(prune_cart)) %>%
+  ggplot() +
+  geom_point(aes(TV, sales)) +
+  geom_step(aes(TV, y_sapka), col = "red")
+
+plot(prune_cart, margin = 0.1)
+text(prune_cart, cex = 0.5)
+
+```
+
+
+## Tahmin
+
+```{r}
+
+head(predict(prune_cart))
+
+defaultSummary(data.frame(obs = df$sales,
+pred = predict(cart_tree)))
+
+```
+
+
+
+## Model Tuning
+
+```{r}
+ctrl <- trainControl(method = "cv", number = 10)
+
+tune_grid <- data.frame(
+  cp = seq(0, 0.05, len = 25)
+  
+)
+# method'a rpart yazarak cp deðerini optimize ettik
+cart_tune <- train(sales~.,
+                  method = "rpart",
+                  trControl = ctrl,
+                  tuneGrid = tune_grid,
+                  preProc = c("center", "scale"), data = df)
+
+cart_tune
+
+plot(cart_tune)
+
+cart_tune$bestTune
+cart_tune$finalModel
+
+plot(cart_tune$finalModel)
+text(cart_tune$finalModel)
+
+plot(predict(cart_tune), df$sales, xlab = "Tahmin",ylab = "Gercek")
+abline(0,1)
+
+
+plot(as.party(cart_tree))
+
+
+defaultSummary(data.frame(obs = df$sales,
+pred = predict(cart_tune)))
+
+```
+
+
+
+
+
+
+
+
+# Bagging Regresyon
+
+
+
+## Veri Seti
+
+Veri Seti
+```{r}
+# Bagging birden fazla aðacýn ve ya algoritmanýn bir arada çalýþmasýyla sonuç üretir
+data(Boston) 
+
+df <- Boston
+
+head(df)
+glimpse(df)
+
+set.seed(3456)
+train_indeks <- createDataPartition(df$medv, 
+                                  p = .8, 
+                                  list = FALSE, 
+                                  times = 1)
+
+
+train <- df[train_indeks,]
+test  <- df[-train_indeks,]
+
+
+train_x <- train %>% dplyr::select(-medv)
+train_y <- train$medv
+test_x <- test %>% dplyr::select(-medv)
+test_y <- test$medv
+
+
+#tek bir veri seti
+training <- data.frame(train_x, medv = train_y)
+
+
+```
+
+
+
+## Model
+
+```{r}
+# Bagging yöntemi birbirinden farklý rastgele gözlemler üzerinden aðaçlar çýkarmaktadýr
+# Random forest'ta ise bagging de olmayan rastgele deðiþken seçimi de vardýr.
+# yani bagging = rastgele gözlem
+# ranfom forest = hem rastgele gözlem hem rastgele deðiþken
+# bagging regresyon kurma yöntemi - 1
+bag_fit <- ipredbagg(train_y, train_x)
+bag_fit
+# bagging regresyon kurma yöntemi - 2
+bag_fit <- bagging(medv~ ., data = training)
+# names metodu ile gelen deðiþkenlerden olan OOB (out of back) verinin bir kýsmý modelin kendi testi için dýþarýda býrakýlmakta. Bu kýsým o kýsýmdýr.
+names(bag_fit)
+
+bag_fit$mtrees
+# rastgele deðiþken seçim sayýsý = mtry
+# rastgele deðiþken seçim sayýsý ncol(training)-1 olursa bagging olur
+bag_fit <- randomForest(training$medv ~ . , data = training,
+             mtry = ncol(training) - 1,
+             importance = TRUE,
+             ntrees = 500
+             )
+
+bag_fit
+summary(training$medv)
+importance(bag_fit)
+varImpPlot(bag_fit)
+```
+
+## Tahmin
+
+```{r}
+
+predict(bag_fit, test_x)
+
+
+defaultSummary(data.frame(obs = test_y,
+pred = predict(bag_fit, test_x)))
+
+# çýkan sonuç hata kareler ortalamasýdýr
+plot(bag_fit, col = "dodgerblue", 
+     lwd = 2, 
+     main = "Bagged Trees: Hata ve Agac Sayisi Karsilastirimasi")
+grid()
+
+
+
+```
+
+
+## Model Tuning
+
+```{r}
+
+ctrl <- trainControl(method = "cv", number = 10)
+
+mtry <- ncol(train_x)
+tune_grid <- expand.grid(mtry = mtry)
+
+
+
+bag_tune <- train(train_x, train_y, 
+                  method = "rf", 
+                  tuneGrid = tune_grid,
+                  trControl = ctrl)
+
+
+
+defaultSummary(data.frame(obs = test_y,
+pred = predict(bag_tune, test_x)))
+
+
+```
+
+
+
+
+
+# Random Forests Regresyon
+
+
+
+## Model 
+```{r}
+# importance =TRUE yapýlmazsa deðiþken önem düzeyleri görünmez
+rf_fit <- randomForest(train_x, train_y, importance = TRUE)
+# deðiþken önem düzeyleri görüntülendi
+importance(rf_fit)
+# görselleþtirildi
+varImpPlot(rf_fit)
+
+
+rf_fit
+```
+
+## Tahmin
+
+```{r}
+
+predict(rf_fit, test_x )
+
+plot(predict(rf_fit, test_x), test_y,
+     xlab = "Tahmin Edilen", ylab = "Gercek",
+     main = "Tahmin Edilen vs Gercek: Random Forest",
+     col = "dodgerblue", pch = 20)
+
+grid()
+abline(0, 1, col = "darkorange", lwd = 2)
+
+
+defaultSummary(data.frame(obs = test_y,
+pred = predict(rf_fit, test_x)))
+
+```
+
+
+## Model Tunning
+
+
+```{r}
+
+ctrl <- trainControl(method = "cv", number = 10)
+
+
+ncol(train_x)/3
+
+tune_grid <- expand.grid(mtry = c(2,3,4,5,10))
+rf_tune <- train( train_x, train_y,
+                  method = "rf",
+                  tuneGrid = tune_grid,
+                  trControl = ctrl
+
+)
+
+rf_tune
+plot(rf_tune)
+
+rf_tune$results %>% filter(mtry == as.numeric(rf_tune$bestTune))
+
+defaultSummary(data.frame(obs = test_y, 
+                            pred = predict(rf_tune, test_x)))
+
+```
+
+
+
+
+
+
+
+
+
+## Caret ile Random Search
+
+```{r}
+
+ctrl <- trainControl(method = "cv", 
+                     number = 10,
+                     search = "random")
+
+rf_random_tune <- train( train_x, train_y,
+                  method = "rf",
+                  tuneLength = 5,
+                  trControl = ctrl
+
+)
+
+rf_random_tune
+
+
+
+```
+
+
+
+## Caret ile Grid Search
+
+```{r}
+
+ctrl <- trainControl(method = "cv", 
+                     number = 10,
+                     search = "grid")
+
+tune_grid <- expand.grid(mtry = c(1:10))
+
+rf_random_tune <- train(train_x, train_y,
+                  method = "rf",
+                  tuneGrid = tune_grid,
+                  trControl = ctrl
+
+)
+
+
+
+model_listesi <- list()
+
+for (ntree in c(100, 200, 300, 500, 1000, 2000)) {
+  
+  set.seed(123)
+  
+  fit <- train(train_x, train_y,
+                  method = "rf",
+                  tuneGrid = tune_grid,
+                  trControl = ctrl, 
+                  ntree = ntree)
+
+  key <- toString(ntree)
+  model_listesi[[key]] <- fit
+  
+}
+
+sonuclar <- resamples(model_listesi)
+summary(sonuclar)
+
+```
+
+
+
+
+
+
+
+# GBM
+
+## Model
+```{r}
+
+
+gbm_fit <- gbm(medv ~ ., data = training ,
+    distribution = "gaussian", 
+    n.trees = 5000,
+    interaction.depth = 1,
+    shrinkage = 0.01,
+    cv.folds = 5)
+
+summary(gbm_fit)
+
+names(gbm_fit)
+
+gbm.perf(gbm_fit, method = "cv")
+
+
+
+defaultSummary(data.frame(obs = train_y, 
+                            pred = gbm_fit$fit))
+
+
+```
+
+
+## Tahmin
+
+
+```{r}
+
+predict(gbm_fit, test_x, n.trees = 5000)
+
+
+defaultSummary(data.frame(obs = test_y, 
+                            pred = predict(gbm_fit, test_x, n.trees = 1000)))
+
+
+plot(predict(gbm_fit, test_x, n.trees = 5000), test_y,
+     xlab = "Tahmin Edilen", ylab = "Gercek",
+     main = "Tahmin Edilen vs Gercek: GBM",
+     col = "dodgerblue", pch = 20)
+
+grid()
+
+abline(0, 1, col = "darkorange", lwd = 2)
+
+```
+
+
+## Model Tuning
+
+
+
+```{r}
+
+
+ctrl <- trainControl(method = "cv", 10,
+                     search = "grid")
+
+
+gbm_grid <- expand.grid(
+            interaction.depth = seq(1, 7, by = 2),
+            n.trees = seq(100, 1000, by = 50),
+            shrinkage = c(0.01, 0.1),
+            n.minobsinnode = c(10:20))
+
+
+gbm_tune_fit <- train(train_x, train_y, 
+      method = "gbm",
+      trControl = ctrl,
+      tuneGrid = gbm_grid,
+      verbose = FALSE
+      )
+
+
+plot(gbm_tune_fit)
+gbm_tune_fit$finalModel
+
+gbm_tune_fit$results %>% 
+  filter(n.trees == as.numeric(gbm_tune_fit$bestTune$n.trees) &
+         interaction.depth == as.numeric(gbm_tune_fit$bestTune$interaction.depth) &
+         shrinkage == as.numeric(gbm_tune_fit$bestTune$shrinkage) &
+        n.minobsinnode == as.numeric(gbm_tune_fit$bestTune$n.minobsinnode))
+
+
+defaultSummary(data.frame(obs = test_y, 
+                            pred = predict(gbm_tune_fit, test_x)))
+
+```
+
+
+
+
+# XGBoost 
+
+
+## Giris 
+Ozellikleri
+
+Hiz: 
+XGBoost OpenMD sayesinde otomatik olarak paralel hesaplama yapar. Boylece klasik GBM'den 10 kat daha hizli calisir.
+
+Girdi Tipleri: 
+Yogunluk matrisi - R'in yogunluk matrisi: matrix
+Seyrek matrisi - R'in seyreklik matrisi -  Matrix::dgCMatrix
+Kendi veri sinifi: xgb.DMatrix
+
+Seyreklik: 
+Regresyon ya da siniflandirma problemleri icin seyrek girdileri kabul eder buna gore optimize edilmistir. 
+
+Ozellestirme:
+Objective fonksiyonlari ve evaluation fonksiyonlari ozellestirilebilir.
+Yani makine ogrenmesi problem turune gore olceklenebilir ve basari degerlendirme kriterleri de duzenlenebilir.
+
+Kurulum
+```{r}
+#en guncel versiyon icin
+
+install.packages("drat", repos="https://cran.rstudio.com")
+drat:::addRepo("dmlc")
+install.packages("xgboost", repos="http://dmlc.ml/drat/", type = "source")
+
+#cran versiyonu icin
+#install.packages("xgboost")
+library(xgboost)
+```
+
+
+## Model 
+
+Model
+```{r}
+
+xgboost_fit <-xgboost(data = as.matrix(train_x),
+        label = train_y, 
+        booster = "gblinear",
+        max.depth = 2,
+        eta = 1,
+        nthread = 2, 
+        nrounds = 1000)
+
+
+dtrain <- xgb.DMatrix(data = as.matrix(train_x), label = train_y)
+dtest <- xgb.DMatrix(data = as.matrix(test_x), label = test_y)
+
+xgboost_fit <-xgboost(data = dtrain, 
+        booster = "gblinear",
+        max.depth = 2,
+        eta = 1,
+        nthread = 2, 
+        nrounds = 3)
+
+xgboost_fit
+
+
+class(dtrain)
+
+
+imp_matris <- xgb.importance(model = xgboost_fit)
+imp_matris
+
+xgb.plot.importance(imp_matris)
+
+```
+
+
+
+Model Takip: watchlist
+```{r}
+
+watchlist <- list(train = dtrain, test = dtest)
+
+xgb_fit <- xgb.train(data = dtrain, 
+                     booster = "gblinear",
+                     max.depth = 4,
+                     eta = 0.1, 
+                     nthread = 2,
+                     nrounds = 100,
+                     watchlist = watchlist)
+
+```
+
+
+
+## Tahmin
+
+```{r}
+predict(xgb_fit, as.matrix(test_x))
+
+plot(predict(xgb_fit, as.matrix(test_x)), test_y,
+     xlab = "Tahmin Edilen", ylab = "Gercek",
+     main = "Tahmin Edilen vs Gercek: XGBoost",
+     col = "dodgerblue", pch = 20)
+grid()
+abline(0, 1, col = "darkorange", lwd = 2)
+
+
+defaultSummary(data.frame(obs = test_y, 
+                            pred = predict(xgb_fit, as.matrix(test_x))))
+
+```
+
+
+## Model Tuning
+```{r}
+
+
+ctrl <- trainControl(method = "cv", number = 10)
+
+xgb_grid <- expand.grid(
+  nrounds = 1000,
+  lambda = c(1,2,3),
+  alpha = c(0, 0.5, 1),
+  eta = c(0, 0.5, 1)
+  
+)
+
+
+xgb_tune_fit <- train(
+  x = data.matrix(train_x),
+  y = train_y,
+  trControl = ctrl,
+  tuneGrid = xgb_grid,
+  method = "xgbLinear"
+)
+
+defaultSummary(data.frame(obs = test_y, 
+                            pred = predict(xgb_tune_fit, as.matrix(test_x))))
+
+
+
+```
+
+
+# Gelismis Hiperparametre Optimizasyonu
+Bu bolum bir kac kaggle kerneli ve buraya kdarki tum deneyimlerimiz ile derlendi.
+
+https://www.kaggle.com/pelkoja/visual-xgboost-tuning-with-caret
+
+
+## Default Hiperparametreler
+
+carette tune edilebilir parametreler
+nrounds: 1000 
+max_depth: 6 
+eta: 0.3     
+gamma: 0
+colsample_bytree: 1 
+min_child_weight:1 
+subsample 1: 
+
+
+```{r}
+
+grid_default <- expand.grid(
+  nrounds = 100,
+  max_depth = 6,
+  eta = 0.3,
+  gamma = 0,
+  colsample_bytree = 1,
+  min_child_weight = 1,
+  subsample = 1
+)
+
+ctrl <- trainControl(
+  method = "none",
+  verboseIter = FALSE,
+  allowParallel = TRUE
+  
+)
+
+xgb_base <- train(
+  x = as.matrix(train_x),
+  y = train_y,
+  trControl = ctrl,
+  tuneGrid = grid_default,
+  method = "xgbTree",
+  verbose = TRUE
+  
+)
+
+defaultSummary(data.frame(obs = test_y, 
+                            pred = predict(xgb_base, as.matrix(test_x))))
+
+```
+
+
+## Adim 1: Iterasyon Sayisi ve Learning Rate Belirlenmesi
+```{r}
+
+nrounds <- 1000
+
+tune_grid <- expand.grid(
+  nrounds = seq(from = 200, to = nrounds, by = 50), 
+  eta = c(0.025, 0.05, 0.1, 0.3),
+  max_depth = c(2, 3, 4, 5, 6),
+  gamma = 0,
+  colsample_bytree = 1,
+  min_child_weight = 1,
+  subsample = 1
+)
+
+ctrl <- trainControl(
+  method = "cv", 
+  number = 10, 
+  verboseIter = FALSE, 
+  allowParallel = TRUE  
+)
+
+
+xgb_tune <- train(
+  x = as.matrix(train_x),
+  y = train_y,
+  trControl = ctrl,
+  tuneGrid = tune_grid,
+  method = "xgbTree",
+  verbose = TRUE
+)
+
+
+defaultSummary(data.frame(obs = test_y, 
+                            pred = predict(xgb_tune, as.matrix(test_x))))
+
+
+tuneplot <- function(x, probs = .90) {
+  ggplot(x) +
+  coord_cartesian(ylim = c(quantile(x$results$RMSE, probs = probs), min(x$results$RMSE))) +
+    theme_bw()
+}
+
+
+tuneplot(xgb_tune)
+
+xgb_tune$bestTune
+
+
+
+
+
+
+
+```
+
+
+
+## Adim 2: Maksimum Derinlik ve Minimum Child Weight
+```{r}
+
+tune_grid2 <- expand.grid(
+  nrounds = seq(from = 50, to = nrounds, by = 50),
+  eta = xgb_tune$bestTune$eta,
+  max_depth = 4,
+  gamma = 0,
+  colsample_bytree = 1,
+  min_child_weight = c(1, 2, 3),
+  subsample = 1
+)
+
+
+xgb_tune2 <- train(
+  x = as.matrix(train_x),
+  y = train_y,
+  trControl = ctrl,
+  tuneGrid = tune_grid2,
+  method = "xgbTree",
+  verbose = TRUE
+)
+
+
+tuneplot(xgb_tune2)
+
+xgb_tune2$bestTune
+
+defaultSummary(data.frame(obs = test_y, 
+                            pred = predict(xgb_tune2, as.matrix(test_x))))
+
+
+```
+
+##Adim 3: Degisken ve Gozlem Orneklemesi
+```{r}
+
+tune_grid3 <- expand.grid(
+  nrounds = seq(from = 50, to = nrounds, by = 50),
+  eta = xgb_tune$bestTune$eta,
+  max_depth = 4, 
+  gamma = 0,
+  colsample_bytree = c(0.4, 0.6, 0.8, 1.0), 
+  min_child_weight = xgb_tune2$bestTune$min_child_weight,
+  subsample = c(0.5, 0.75, 1.0) 
+)
+
+xgb_tune3 <- train(
+  x = as.matrix(train_x),
+  y = train_y,
+  trControl = ctrl,
+  tuneGrid = tune_grid3,
+  method = "xgbTree",
+  verbose = TRUE
+)
+
+
+tuneplot(xgb_tune3)
+
+
+xgb_tune3$bestTune
+defaultSummary(data.frame(obs = test_y, 
+                            pred = predict(xgb_tune3, as.matrix(test_x))))
+```
+
+
+
+## Adim 4: Gamma
+```{r}
+tune_grid4 <- expand.grid(
+  nrounds = seq(from = 50, to = nrounds, by = 50),
+  eta = xgb_tune$bestTune$eta,
+  max_depth = 5,
+  gamma = c(0, 0.05, 0.1, 0.5, 0.7, 0.9, 1.0),
+  colsample_bytree = xgb_tune3$bestTune$colsample_bytree,
+  min_child_weight = xgb_tune2$bestTune$min_child_weight,
+  subsample = xgb_tune3$bestTune$subsample
+)
+
+xgb_tune4 <- train(
+  x = as.matrix(train_x),
+  y = train_y,
+  trControl = ctrl,
+  tuneGrid = tune_grid4,
+  method = "xgbTree",
+  verbose = TRUE
+)
+
+tuneplot(xgb_tune4)
+xgb_tune4$bestTune
+
+defaultSummary(data.frame(obs = test_y, 
+                            pred = predict(xgb_tune4, as.matrix(test_x))))
+
+```
+
+
+
+##Adim 5: Learning Rate'in Indirgenmesi
+```{r}
+
+
+tune_grid5 <- expand.grid(
+  nrounds = seq(from = 100, to = 1000, by = 50),
+  eta = c(0.01, 0.015, 0.025, 0.05, 0.1),
+  max_depth = xgb_tune2$bestTune$max_depth,
+  gamma = xgb_tune4$bestTune$gamma,
+  colsample_bytree = xgb_tune3$bestTune$colsample_bytree,
+  min_child_weight = xgb_tune2$bestTune$min_child_weight,
+  subsample = xgb_tune3$bestTune$subsample
+)
+
+xgb_tune5 <- train(
+  x = as.matrix(train_x),
+  y = train_y,
+  trControl = ctrl,
+  tuneGrid = tune_grid5,
+  method = "xgbTree",
+  verbose = TRUE
+)
+
+tuneplot(xgb_tune5)
+
+xgb_tune5$bestTune
+defaultSummary(data.frame(obs = test_y, 
+                            pred = predict(xgb_tune5, test_x)))
+
+```
+
+## Adim 6: Son Model
+```{r}
+
+final_grid <- expand.grid(
+  nrounds = xgb_tune5$bestTune$nrounds,
+  eta = xgb_tune5$bestTune$eta,
+  max_depth = xgb_tune5$bestTune$max_depth,
+  gamma = xgb_tune5$bestTune$gamma,
+  colsample_bytree = xgb_tune5$bestTune$colsample_bytree,
+  min_child_weight = xgb_tune5$bestTune$min_child_weight,
+  subsample = xgb_tune5$bestTune$subsample
+)
+
+
+xgb_son_model <- train(
+  x = as.matrix(train_x),
+  y = train_y,
+  trControl = ctrl,
+  tuneGrid = final_grid,
+  method = "xgbTree",
+  verbose = TRUE
+)
+
+
+#test hatasi
+defaultSummary(data.frame(obs = test_y, 
+                            pred = predict(xgb_son_model, as.matrix(test_x))))
+
+
+
+
+
+
+```
+
+
+
+## Adim 7: Model Kaydetmek ve Paylasmak
+
+Model Nesnesinin Kaydedilmesi
+```{r}
+
+save(xgb_son_model, file = "xgb_son_model.rda")
+rm(xgb_son_model)
+load("xgb_son_model.rda")
+
+predict(xgb_son_model, test_x)
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

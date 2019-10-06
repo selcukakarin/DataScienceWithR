@@ -1,0 +1,82 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+Vektor Olusturma
+```{r}
+# 1'den 2 ye kadar 3 kere sayıları oluşturur
+rep(1:2, 3)
+a <- rep(1:2, 3)
+is.vector(a)
+
+typeof(a)
+
+a <- "ali"
+
+a <- c("ali", "veli","isik" , "uzaya gitsin")
+a
+
+
+```
+
+
+Vektor Birlestirme
+```{r}
+v <- 1:10
+y <- 2:11
+
+# vektörleri toplar veya çarpar
+v+y
+v * y
+
+# vektörleri uc uca ekler
+c(v,y)
+
+# satır satır alt alta birleştirir
+rbind(v,y)
+# sütun olarak yan yana birleştirir
+cbind(v,y)
+```
+
+
+Vektor Indeksi ve Eleman Secimi
+```{r}
+# 10'dan 100'e kadar sayıları vektöre atar
+v  <- 10:100
+v[8]
+v[1:10]
+v[c(10,20,30)]
+v[10]
+# verilen aralıktaki değerleri listeler
+v[v > 50 & v < 80]
+a <- c("ali", "veli","isik" , "uzaya gitsin")
+# sarta göre vektörde arama işlemi
+a[a == "veli"]
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

@@ -1,0 +1,473 @@
+---
+title: "R Notebook"
+output: html_notebook
+editor_options: 
+  chunk_output_type: inline
+---
+
+# Veri Seti
+
+```{r}
+
+df <- data.frame(
+  V1 = c(1,3,6,NA,7,1,NA,9,15),
+  V2 = c(7,NA,5,9,12,NA,NA,2,3),
+  V3 = c(NA,12,5,6,3,7,2,NA,31)
+)
+
+```
+
+
+# Sipsak Silme ve Doldurma 
+
+```{r}
+#silme
+# na.omit herhangi bir değişkeni eksik olsa bile o kaydı siler
+na.omit(df)
+
+#doldurma
+# is.na(df$V1) -> eğer df$V1 içindeki veri eksikse 
+# ortalamasını al ve ata
+df$V1[is.na(df$V1)] <- mean(df$V1, na.rm = TRUE)
+df
+
+#apply ile tum sutunlari doldurmak
+# tüm sütunlar o sütunun ortalaması ile doldu
+df <- sapply(df, function(x) ifelse(is.na(x), mean(x, na.rm = TRUE), x ))
+
+df
+
+```
+
+# Eksik Veri Degerlendirme
+
+## Eksikligin Sorgulanmasi, Konuma Erisme ve Saydirma
+
+```{r}
+#Tum veri 
+# hangi verinin na değer olduğunu gösterir
+is.na(df) #sorgulanma
+# na değerlerin konumlarını aldık
+which(is.na(df)) #konuma erisme
+df
+# kaç tane na olduğunu verir
+sum(is.na(df))
+
+
+#Degisken bazinda 
+is.na(df$V1)
+# değişken bazında na indekslerini verir
+which(is.na(df$V1))
+df$V1
+sum(is.na(df$V1))
+# her değişken için yani kolon bazlı eksik gözlem sayılarını elde ettik
+colSums(is.na(df)) #her degisken icin
+
+```
+
+## Eksik ya da Tam Gozlemlere Erisme
+
+```{r}
+
+df <- data.frame(
+  V1 = c(1,3,6,NA,7,1,NA,9,15),
+  V2 = c(7,NA,5,9,12,NA,NA,2,3),
+  V3 = c(NA,12,5,6,3,7,2,NA,99)
+)
+
+
+df
+
+complete.cases(df)
+
+df[complete.cases(df), ] #dolu olanlari dondu
+
+df[!complete.cases(df), ] #en az bir tane eksik olanlari dondu
+
+df[complete.cases(df), ]$V1 #degisken bazinda tam gozlemlere erismek
+
+
+
+
+```
+
+
+## Tanimli Eksik Degerlerin Doldurulmasi
+
+```{r}
+# 99 değerlerini NA yaptık
+df$V3[df$V3 == 99] <- NA
+
+df
+```
+
+
+# Eksik Verinin Yapisinin Incelenmesi
+
+## Veri Seti
+
+```{r}
+
+#install.packages("ISLR")
+library(ISLR)    
+
+df <- Hitters
+str(df)
+# kolonlarda kaçar tane eksik veri var bulduk.
+colSums(is.na(df))
+
+#rastgele eksik gozlem ekleme
+df[sample(1:nrow(df), 7), "Hits"] <- NA 
+df[sample(1:nrow(df), 9), "Runs"] <- NA
+df[sample(1:nrow(df), 5), "RBI"] <- NA
+
+colSums(is.na(df))
+
+df[, c("Salary", "Hits" ,"Runs", "RBI")]
+
+#sadece dolu olanlar
+df[complete.cases(df), ] 
+
+
+#sadece eksik olanlar
+# en az bir değeri eksik kolonları çağırdık
+df[!complete.cases(df), ] #en az bir tane eksik olanlari dondu
+
+
+
+```
+
+## Mice ile Yapi Incelemesi
+
+```{r}
+install.packages("mice")  
+library(mice) 
+
+md.pattern(df) 
+# örnekte 245 tane kayıt sorunsuz
+# 245 gözlem tam
+# diğerleri ise eksikliklerini göstermekte
+md.pattern(df[, c("CAtBat","Years","Walks","Salary", "Hits" ,"Runs", "RBI") ])    
+
+nrow(df[complete.cases(df), ] )
+
+
+eksikler <- df[!complete.cases(df), ]
+View(eksikler)
+
+```
+
+## VIM ile Yapi Incelemesi
+```{r}
+install.packages("VIM")
+library(VIM)     
+# eksiklikleri gözlemliyoruz
+# buradan birliktelik çıkarımları da yapılabilir
+aggr_plot <- aggr(df, col=c('navyblue','red'), 
+                  numbers = TRUE, 
+                  sortVars = TRUE, 
+                  labels = names(df), 
+                  cex.axis=.7, 
+                  gap=3, 
+                  ylab=c("Eksik Degerlerin Oransal Gosterimi",
+                         "Eksikligin Veri Seti Icindeki Yapisi"))
+
+
+aggr_plot
+
+
+```
+
+
+# Rassalligin Test Edilmesi: LittleMCAR 
+
+H0: Eksik Veriler Tamamen Rasgele Dagilmistir
+H1: ... Dagilmamistir
+
+
+```{r}
+install.packages("BaylorEdPsych")  
+library(BaylorEdPsych)
+install.packages("mvnmle")
+library(mvnmle)
+# littleMCAR ile %95 doğrulukta bir hipotez testi yaparız
+r_test <- LittleMCAR(df)
+
+attributes(r_test)
+
+r_test$p.value
+r_test$amount.missing
+
+```
+
+
+# Silme Yontemleri 
+
+## Gozlem Silme
+```{r}
+
+#EN AZ BIR EKSIK VARSA SILMEK
+# kayıtın herhangi bir değişkeni eksik ise o kaydı siler
+na.omit(df)
+
+#BELIRLI BIR DEGISKENDEKI EKSIKLIKLERIN SILINMESI
+# eksiklik incelemesi yaptık 
+sapply(df, function(x)(sum(is.na(x))))
+# Runs değişkeni hariç diğer kolonlardaki eksiklik durumlarını gözlemledik
+sapply(df[!is.na(df$Runs),], function(x)(sum(is.na(x))))
+# sadece Runs değişkeni kayıp ise kaydı sildik
+df <- df[!is.na(df$Runs),]
+
+#GOZLEM BAZINDA EKSIKLIGIN INCELENMESI
+df[1,]
+is.na(df[1,])
+sum(is.na(df[1,]))
+# 1. satırdaki kayıttaki na (boş gözlemlerin) diğer değişkenlere oranı
+sum(is.na(df[1,]))/length(df[1,])
+# bütün satırlar için yukarıdaki fonksiyonu uyguladık 
+apply(df,1,function(x) sum(is.na(x))/length(x))
+
+
+#oranlarin hesaplanmasi ve kaydedilmesi
+g <- apply(df, 1, function(x) sum(is.na(x)) / length(x))
+g <- as.vector(g)
+g
+# eksiklik oranını bir metric olarak dataframemize ekledik
+df$eksik_oran <- g
+
+str(df)
+
+summary(df$eksik_oran)
+
+library(dplyr)    # need to run every time you start R and want to use %>%
+
+#belirli bir orana gore silmek
+# eğer eksilik oranı 0.01'den büyükse dataframeden sildik
+df <- df %>% filter(eksik_oran < 0.01) 
+str(df)
+
+
+```
+
+## Degisken Silme
+```{r}
+library(ISLR)
+df <- Hitters
+df[sample(1:nrow(df), 7), "Hits"] <- NA 
+df[sample(1:nrow(df), 9), "Runs"] <- NA
+df[sample(1:nrow(df), 5), "RBI"] <- NA
+
+#DEGISKENLER ICIN TOPLAM EKSIK DEGER SAYISI
+colSums(is.na(df)) #her degisken icin
+
+
+#DEGISKENLER ICIN EKSIK DEGER ORANI
+library(funModeling)
+
+df_status(df) #bu karisik geldi ise soyle yapabilriz.
+df_na <- df_status(df)
+df_na[,c("variable","q_na","p_na")]
+
+#buradan verecegimiz karar ile silme islemi yapabiliriz.
+
+
+#TEK TEK DEGISKEN SILME
+# salary değişkenini sildik 
+df$Salary <- NULL
+summary(df) 
+
+
+#COK DEGISKENLI VERI SETINDE DEGISKEN SILME
+#degisken bazinda eksiklikklerin incelenmesi
+apply(df, 2, function(x) sum(is.na(x)) / length(x))
+e_d <- apply(df, 2, function(x) sum(is.na(x)) / length(x))
+#dataframe e cevirmek
+e_d <- as.data.frame(e_d)
+#degisken isimlerini degisken olarak eklemek
+e_d$degisken_isimleri <- rownames(e_d) 
+#belirli bir oranin uzerindeki degiskenlere erismek
+e_d[e_d$e_d > 0.02,] 
+#degiskenleri secmek
+e_d[e_d$e_d > 0.02,]$degisken_isimleri 
+#bu degiskenleri ana veri setinden silmek
+e_d_d <- df %>% select(-c(e_d[e_d$e_d > 0.02,]$degisken_isimleri))
+str(e_d_d)
+
+```
+
+
+# Basit Deger Atama Yontemleri 
+```{r}
+
+#Veri seti
+df <- Hitters
+df[sample(1:nrow(df), 7), "Hits"] <- NA 
+df[sample(1:nrow(df), 9), "Runs"] <- NA
+df[sample(1:nrow(df), 5), "RBI"] <- NA
+
+
+#Klasik Eksik Gozlem Doldurmak
+summary(df$Hits)
+# eksik gözlemleri ortalama ile doldurduk
+df$Hits[is.na(df$Hits)] <- mean(df$Hits, na.rm = TRUE)
+summary(df$Hits)
+colSums(is.na(df)) #her degisken icin
+
+
+#Hmisc ile Eksik Gozlem Doldurmak
+library(Hmisc) 
+
+
+#MEAN ile Doldurma
+summary(df$Salary)
+# Salary değişkenindeki NA değerleri median değeri ile doldurduk
+df$Salary <- impute(df$Salary, median)  
+summary(df$Salary)
+
+#Median ve Digerleri ile Doldurma
+impute(df$Salary, median) #medyan
+impute(df$Salary, mode) #mod
+impute(df$Salary, 500) #özel değer
+
+
+```
+
+
+# Tahmine Dayali Deger Atama
+## KNN ile Atama
+```{r}
+#Veri seti
+df <- Hitters
+df[sample(1:nrow(df), 7), "Hits"] <- NA 
+df[sample(1:nrow(df), 9), "Runs"] <- NA
+df[sample(1:nrow(df), 5), "RBI"] <- NA
+
+install.packages("DMwR")
+library(DMwR) #knn icin gerekli olan kutuphane
+
+anyNA(df)
+# knn ile atama yapıldı
+knn_data <- knnImputation(df, k = 5) 
+knn_data <- knnImputation(df, k = 5, meth="median") 
+anyNA(knn_data) #eksik değer olup olmadığının kontrolü
+
+str(knn_data)
+summary(knn_data)
+
+
+```
+
+
+## KNN Atamalari ile Gercek Degerlerin Karsilastirilmasi
+```{r}
+df <- Hitters
+df[sample(1:nrow(df), 7), "Hits"] <- NA 
+df[sample(1:nrow(df), 9), "Runs"] <- NA
+df[sample(1:nrow(df), 5), "RBI"] <- NA
+
+#EKSIKLERIN INDEKSLERINE ERISMEK
+
+which(is.na(df))
+which(is.na(df$Hits))
+
+#Tum degiskenler icin indekslere erismek
+sapply(df, function(x) which(is.na(x)))
+# datasetimizdeki eksik indexleri aldık
+l <- sapply(df, function(x) which(is.na(x)))
+l
+l <- l[c("Salary","Hits","Runs","RBI")]
+l
+
+
+
+#GERCEK VERIDE INDEKSLERIN GERCEK DEGERLERI
+# NA'leri ekleyerek kendi bozduğumuz veri setindeki NA indeklerinizi alıp orjinal Hitters veri setindeki karşılık gelen indeks değerlerine eriştik. Yani orjinal verisetindeki gerçek değerlere ulaştık
+Hitters[c(l$Hits),]$Hits
+Hitters[c(l$Runs),]$Runs
+Hitters[c(l$RBI),]$RBI
+
+#TAHMIN EDILEN DEGERLERE ERISMEK
+knn_data <- knnImputation(df, k = 5) 
+colSums(is.na(df)) #her degisken icin
+colSums(is.na(knn_data)) #her degisken icin
+knn_data[c(l$Hits),]$Hits
+knn_data[c(l$Runs),]$Runs
+knn_data[c(l$RBI),]$RBI
+
+
+#KARSILASTIRMA
+# bozulan veri setiyle orjinal veri seti karşılaştırması yapıldı
+mean(Hitters[c(l$Hits),]$Hits - knn_data[c(l$Hits),]$Hits)
+summary(Hitters$Hits)
+
+mean(Hitters[c(l$Runs),]$Runs - knn_data[c(l$Runs),]$Runs)
+summary(Hitters$Runs)
+
+mean(Hitters[c(l$RBI),]$RBI - knn_data[c(l$RBI),]$RBI)
+summary(Hitters$Runs)
+
+```
+
+
+
+## Random Forests ile Atama
+```{r}
+
+install.packages("missForest")
+library(missForest)
+
+
+df <- Hitters
+df[sample(1:nrow(df), 7), "Hits"] <- NA 
+df[sample(1:nrow(df), 9), "Runs"] <- NA
+df[sample(1:nrow(df), 5), "RBI"] <- NA
+
+# random forest ile atamamızı gerçekleştirdik
+rf_data <- missForest(df, ntree = 7)
+
+str(rf_data)
+
+```
+
+
+## RF ile Gercek Degerleri Karsilatirma
+```{r}
+df <- Hitters
+df[sample(1:nrow(df), 7), "Hits"] <- NA 
+df[sample(1:nrow(df), 9), "Runs"] <- NA
+df[sample(1:nrow(df), 5), "RBI"] <- NA
+
+l <- sapply(df, function(x) which(is.na(x)))
+
+l <- l[c("Salary","Hits","Runs","RBI")]
+
+
+
+#GERCEK VERIDE INDEKSLERIN GERCEK DEGERLERI
+Hitters[c(l$Hits),]$Hits
+Hitters[c(l$Runs),]$Runs
+Hitters[c(l$RBI),]$RBI
+
+#TAHMIN EDILEN DEGERLERE ERISMEK
+rf_data <- missForest(df, ntree = 10)
+# rf_data'ya missForest uygulandıktan sonra geriye list tipinde değişik bir değer gelir
+# bunu ximp değişkeninin çekerek düzeltebiliriz
+rf_data <- rf_data$ximp
+
+rf_data[c(l$Hits),]$Hits
+rf_data[c(l$Runs),]$Runs
+rf_data[c(l$RBI),]$RBI
+
+
+#KARSILASTIRMA
+# aşağıdaki sonuçlardan görüleceği üzere random forest knnden daha iyi atamalar yapmıştır
+mean(Hitters[c(l$Hits),]$Hits - rf_data[c(l$Hits),]$Hits)
+summary(Hitters$Hits)
+
+mean(Hitters[c(l$Runs),]$Runs - rf_data[c(l$Runs),]$Runs)
+summary(Hitters$Runs)
+
+mean(Hitters[c(l$RBI),]$RBI - rf_data[c(l$RBI),]$RBI)
+summary(Hitters$Runs)
+
+```

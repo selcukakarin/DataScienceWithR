@@ -1,0 +1,416 @@
+---
+title: "Kesifci Veri Analiz"
+output: html_notebook
+editor_options: 
+  chunk_output_type: inline
+---
+
+
+
+#Iste veri onumde simdi ne yapacagim?
+
+https://www.veribilimi.co/2017/12/11/iste-veri-onumde-simdi-ne-yapacagim/
+
+1. Amac Ne?
+
+2. Tidy Data Sureci
+
+3. Degisken Turlerinin Belirlenmesi ve Ayarlanmasi
+
+4. Ozet Istatistikler: Veri Setinin Temel Yapisinin Gösterilmesi
+
+5. Kesifci Veri Analizi
+
+
+```{r}
+library(tidyverse)
+```
+
+## Degisken Donusumleri ve Turlerinin Ayarlanmasi
+```{r}
+df <- mpg
+df$class <- factor(df$class)
+glimpse(df)
+df$disp_yeni <- ifelse(df$displ > 2, "bir", "sifir")
+df$disp_yeni <- factor(df$disp_yeni)
+df$disp_iki <- cut(df$displ, breaks = c(0,2, max(df$displ)))
+```
+
+
+## Veriye Ilk Bakis
+```{r}
+colnames(mpg)
+rownames(mpg)
+nrow(mpg)
+ncol(mpg)
+head(mpg)
+str(mpg)
+glimpse(mpg)
+psych::headTail(mpg)
+summary(df)
+fivenum(df$displ)
+levels(df$class)
+```
+
+
+## Surekli ve Kategorik Degiskenlere Hizli Bakis
+```{r}
+library(funModeling)
+profiling_num(df)
+plot_num(df)
+freq(df)
+```
+
+
+## Surekli ve Kategorik Degiskenler Icin Detaylara
+```{r}
+library(psych)
+describe(mpg$displ)
+library(Hmisc)
+Hmisc::describe(mpg$displ)
+install.packages("pastecs") 
+library(pastecs)
+stat.desc(mpg)
+mpg
+df <- select(mpg, trans, cty, cyl, hwy)
+describeBy(df, df$trans)
+```
+
+
+## Data Framelerin Interaktif Kesfi
+```{r}
+install.packages("d3Tree") 
+library(d3Tree)
+d3tree(list(root = df2tree(rootname ='Titanic', 
+                           struct = as.data.frame(Titanic)), 
+                           layout = 'collapse'))
+
+install.packages("devtools") 
+devtools::install_github("rsquaredacademy/xplorerr")
+library(xplorerr)
+app_descriptive()
+
+```
+
+
+
+
+
+# Dagilimlarin Incelenmesi   
+
+
+## Bar Plot (Sutun Grafik)
+```{r}
+
+df <- diamonds
+glimpse(df)
+
+ggplot(df, aes(cut)) +
+  geom_bar()
+
+ggplot(df, aes(cut, fill = color)) +
+  geom_bar(position = position_dodge()) + 
+  ggtitle("Bu yazi ana baslik yazididir") +
+  xlab("Pirlanta kaliteleri") + 
+  ylab("Gozlenme Sikliklari")
+
+```
+
+
+
+## Histogram ve Yogunluk
+```{r}
+
+glimpse(df)
+ggplot(df, aes(price)) +
+  geom_histogram(binwidth = 1000)
+
+ggplot(df, aes(price)) +
+  geom_density()
+
+ggplot(df, aes(price)) +
+  geom_histogram(aes(y = ..density..)) +
+  geom_density(alpha = .3, fill = "orange") 
+
+ggplot(df, aes(price)) +
+  geom_histogram() + 
+  facet_grid(cut ~. )
+
+```
+
+
+## Ridgeline
+```{r}
+install.packages("ggplot")
+library(ggridges)
+
+ggplot(df, aes(x = price, y = cut, fill = cut)) +
+  geom_density_ridges() + 
+  theme_ridges() + 
+  theme(legend.position = "none")
+
+```
+
+
+
+## Interaktif Histogram
+```{r}
+install.packages("plotly")
+library(plotly)
+g <- plot_ly(x = rnorm(500), type = "histogram")
+g
+
+g <- plot_ly(x = rnorm(500), opacity = 0.6, type = "histogram") %>%
+  add_trace(x = rnorm(500) + 1) %>%
+  layout(barmode =  "overlay")
+g
+
+```
+
+
+
+## Coklu Frekans 
+```{r}
+ggplot(df, aes(price, y = ..density..)) +
+  geom_density(aes(colour = cut), binwidth = 500)
+ggplot(df, aes(price, y = ..density..)) +
+  geom_freqpoly(aes(colour = cut), binwidth = 500)
+
+```
+
+
+
+## Box Plot
+```{r}
+
+ggplot(df, aes(x = cut, y = price, fill = cut)) +
+         geom_boxplot()
+
+```
+
+
+## Violin
+```{r}
+ggplot(df, aes(x = cut, y = price, fill = cut)) +
+         geom_violin(alpha = 0.6)
+
+```
+
+
+
+# Korelasyonlarin Incelenmesi
+
+## Scatter Plot
+### Giris 
+```{r}
+
+library(tidyverse)
+
+glimpse(iris)
+df <- iris 
+
+ggplot(df, aes(Sepal.Length, Sepal.Width)) +
+  geom_point(size = 2, 
+             shape = 21, 
+             stroke = 1,
+             color = "black",
+             fill = "orange") +
+  geom_smooth(color = "red")
+
+
+ggplot(df, aes(Sepal.Length, Sepal.Width, color = Species, shape = Species )) +
+  geom_point(size = 6, alpha = 0.6) 
+  
+
+ggplot(df, aes(Sepal.Length, Sepal.Width, color = Petal.Length, size = Petal.Length )) +
+  geom_point(alpha = 0.6) 
+
+
+```
+
+
+
+
+### Birimleri Grafige Eklemek
+```{r}
+
+df <- mtcars
+
+ggplot(df, aes(x = wt, y = mpg, fill = cyl)) +
+  geom_point() + 
+  geom_label(label = rownames(df),  
+            nudge_x = 0.25, 
+            nudge_y = 0.2) +
+  geom_smooth(method = lm, se = FALSE)
+
+
+```
+
+
+
+### Marjinlere Dagilim Eklemek
+```{r}
+library(ggExtra)
+
+g <- ggplot(df, aes(x = wt, y = mpg, fill = cyl)) +
+  geom_point() + 
+  geom_label(label = rownames(df),  
+            nudge_x = 0.25, 
+            nudge_y = 0.2) +
+  geom_smooth(method = lm, se = FALSE)
+
+
+ggMarginal(g, type = "histogram", fill = "slateblue")
+
+
+```
+
+
+
+## HeatMap
+```{r}
+df <- as.matrix(mtcars)
+heatmap(df, Colv = NA, Rowv = NA, scale = "column")
+
+```
+
+
+
+
+## Korelasyon Matrisleri
+```{r}
+library(GGally)
+
+df <- mtcars[ , c(1,3:6)]
+
+cor(df)
+cor.test(df$mpg, df$wt)
+plot(df)
+
+ggcorr(df)
+ggpairs(df)
+
+```
+
+
+
+## Zaman Serisi Gorsellestirme
+```{r}
+
+df <- economics
+ggplot(df, aes(date, psavert)) +
+  geom_line() +
+  stat_smooth()
+```
+
+
+
+
+# Gelismis Grafikler 
+## Dairesel Bar Plot
+```{r}
+
+veri <- data.frame(
+  id = seq(1,60),
+  ogrenciler = paste("Ogrenci", seq(1,60), sep="_"),
+  notlar = sample(seq(10,100), 60, replace = T)
+)
+
+veri
+
+
+p <- ggplot(veri, aes(x = as.factor(id), y = notlar)) +       
+  
+  geom_bar(stat="identity", fill = alpha("skyblue", 0.7)) + 
+  ylim(-100, 120) +
+  theme_minimal() +
+  theme(
+    axis.text = element_blank(),
+    axis.title = element_blank(),
+    panel.grid = element_blank(),
+    plot.margin = unit(rep(-1,4), "cm") 
+    ) +
+  coord_polar(start = 0) + 
+  geom_text(data = label_data, aes(x = id, 
+                                   y = notlar + 10, 
+                                   label = ogrenciler, hjust = hjust), color="black", fontface = "bold", alpha = 0.6, size = 2.5, angle = label_data$aci, inherit.aes = FALSE) 
+
+p
+
+```
+
+# Etiket ayarlamalari
+```{r}
+label_data <- veri
+sutun_sayisi <- nrow(label_data)
+aci <- 90 - 360 * (label_data$id-0.5) /sutun_sayisi     
+label_data$hjust<-ifelse(aci < -90, 1, 0)
+label_data$aci<-ifelse(aci < -90, aci + 180, aci)
+
+```
+
+
+
+
+## TreeMap
+
+Treemaps hiyerarsik yapidaki veri setlerini gorsellestirmek icin ic ice kare-dikdortgen yapilari kullanan bir veri gorsellestirme teknigidir.
+
+Agacin her dalina veri icerisindeki bir kategori diktortgen olarak atanir ve alt dallarina da o kategorinin alt kategorileri atanir. En altta yer alan yapraklarda ise bu kategorilere ait olan surekli degisken degerleri gosterilir, yani bir adet surekli degiskene de ihtiyacimiz vardir.
+
+### 1.Basit TreeMap
+```{r}
+
+library(treemap)
+
+df <- data.frame(
+  gruplar = c("grup_1", "grup_2","grup_3"),
+  degerler = c(10, 90, 60)
+  
+)
+ 
+df
+
+treemap(df, index = "gruplar", vSize = "degerler", type ="index")
+```
+
+
+### 2.Alt Gruplar ile Treemap Olusturmak
+```{r}
+
+
+df<- diamonds
+df <- select(diamonds, cut, color, price)
+
+df <- data.frame(
+  gruplar = c(rep("grup_1", 4),
+               rep("grup_2", 2),
+               rep("grup_3", 3)),
+  
+  alt_gruplar = paste("alt_grup", c(1,2,3,4,1,2,1,2,3), sep = "_"),
+  
+  degerler = c(13,5,22,12,11,4,2,5,6)
+  
+)
+
+df
+
+treemap(df, index = c("cut","color"), 
+        vSize = "price", 
+        type ="index",
+        fontsize.labels = c(20,13),
+        fontcolor.labels = c("white","black"),
+        bg.labels = c("transparent"),
+        align.labels = list(
+          c("center", "center"),
+          c("right","bottom")
+          
+        ),
+        border.col = c("black","white"),
+        border.lwds = c(5,2)
+        
+        
+        
+        )
+
+```

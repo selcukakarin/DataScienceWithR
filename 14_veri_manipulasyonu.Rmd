@@ -1,0 +1,159 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+
+
+
+#Veri Manipulasyonuna Giris
+```{r}
+#install.packages("tidyverse")
+library(tidyverse)
+
+install.packages("nycflights13")
+library(nycflights13)
+
+df <- flights
+
+
+df %>% 
+  select(dep_delay, day, carrier, distance) %>% 
+  filter(dep_delay > 10) %>% 
+  group_by(carrier) %>% 
+  summarise(n = n(),
+            ortalama = mean(dep_delay),
+            mean(distance)) %>% 
+  arrange(desc(ortalama))
+```
+
+
+##Degisken Secme Islemleri: select()
+```{r}
+str(df)
+select(df, dep_delay, month, day, dep_time)
+select(df, 6:10)
+select(df, -c( dep_delay, month, day, dep_time))
+```
+
+
+##contains()
+
+```{r}
+select(df, contains("time"))
+```
+
+
+##Gozlem Islemleri: filter()
+```{r}
+filter(df, day == 1)
+
+filter(df, dep_time > 517)
+
+filter(df, dep_time > 517 & day == 1)
+
+a <- filter(df, dep_delay > mean(df$dep_delay, na.rm = TRUE))
+# na.rm = TRUE eksik verileri kaldirmak icin kullanilir
+#Eksik veri olur ise fonksiyonlar calismayabilir
+# yukaridaki fonsiyonda ortalama delay-bekleme s�resinden fazla bekleme yapan ucuslar listelenir.
+
+b <- select(a, carrier, dep_delay)
+# burda ise firmalar ve delay-gecikme zamanlarini cektik
+
+arrange(b, desc(dep_delay))
+# gecikmeleri azalan sırada gördük
+
+sample_n(df, 10)
+
+head(df, 10)
+
+top_n(df, 10)
+
+slice(df, 100:110)
+
+```
+
+
+
+##Degisken Olusturma: mutate()
+```{r}
+mutate(df,
+       kazanc = arr_delay - dep_delay,
+       hiz = distance / arr_time * 60,
+       yeni = kazanc / hiz)
+
+
+
+transmute(df,
+       kazanc = arr_delay - dep_delay,
+       hiz = distance / arr_time * 60,
+       yeni = kazanc / hiz)
+
+```
+
+
+##Gruplama ve Veri Ozetleme
+```{r}
+df %>% 
+  select(contains("time")) %>% 
+  filter(dep_time > 550)
+
+
+df %>% group_by(carrier) %>% 
+  summarise(n = n())
+
+
+df %>% group_by(carrier) %>% 
+  summarise(n = n(),
+            ortalama = mean(dep_delay, na.rm = T),
+            medyan = median(dep_delay),
+            sd = sd(dep_delay))
+
+```
+
+
+
+
+#TIDY DATA
+
+##Gathering
+```{r}
+library(tidyverse)
+
+table4a
+# hata : degiskeninin ismi yerine degiskenin degerinin gelmesi problemi
+
+table4a %>% 
+  gather("1999", "2000", key =  "year", value = "cases")
+
+table4b %>% 
+  gather("1999", "2000", key =  "year", value = "cases")
+```
+
+
+##Spereading
+```{r}
+# Hata : değişkenin ismi diğer değişkenin değeri yerine geçmesi problemi
+table2 %>% 
+  spread(key = "type", value = "count" )
+```
+
+
+##Separating ve Unite
+```{r}
+# bir değişken içerisindeki 2 değeri ayırma işlemi
+table3 %>% 
+  separate(rate, into = c("var1", "var2"))
+```
+
+
+```{r}
+# century ve year'daki değerler aslında tek bir değişkenin değerleri olmalı ve bunu çözdük
+table5 %>% 
+  unite(new, century, year, sep = "")
+```
+
+
+
+
+

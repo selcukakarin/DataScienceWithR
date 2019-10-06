@@ -1,0 +1,128 @@
+  ---
+title: "R Notebook"
+output:
+  word_document: default
+  pdf_document: default
+  html_notebook: default
+editor_options: 
+  chunk_output_type: inline
+---
+
+
+## Operatorler
+
+### Atama Operatorleri
+
+```{r}
+# normal atama operatörleri
+# =
+#  <-
+
+# Döngülerin içerisindeki atama işlemini glaobal environment'a taşımak için kullanılan atama tarzı
+#  <<-
+
+
+a <- 1
+a = 9
+a
+
+
+```
+
+
+
+### Aritmetik Operatorler
+
+
+```{r}
+# Operator Tanimlari
+#+	ekleme
+#-	cikarma
+#*	carpma
+#/	bolme
+#^ ya da **	ust alma
+
+9*9
+a <- 9
+b <- 8
+a/b
+a^2
+
+
+```
+
+
+
+### Mantiksel Operatorleri (Iliskisel Operatorler)
+
+
+```{r}
+#Operator Tanimlari
+# <	kucuk
+# <=	kucuk esit
+# >	buyuk
+# >=	buyuk esit
+# ==	esit mi
+# !=	esit degil
+# x | y	x ya da  y
+# x & y	x ve y
+
+5 > 6
+5==5
+8 != 6
+veri <- 1:10 # 1 ile 10 arasinda sayi olustur.
+veri
+veri[veri > 4] #veri vektoru icerisinde 4'ten buyuk degerler.
+
+```
+
+
+
+## Matematiksel Islemler
+
+```{r}
+
+#hesap makinesi olarak R
+#*, +, -, /, ^
+#sqrt
+#abs
+#log, log10, log2
+sqrt(9)
+abs(-19)
+a <- sqrt(9)
+b <- log(a)
+c <- log2(b)
+log2(log(sqrt(9)))
+
+
+```
+
+
+
+
+## Temel Fonksiyonlar
+
+```{r}
+
+sessionInfo()
+
+getwd()
+# bulunduğun dizini gösterir
+
+# setwd("C:/Users/selcuk/Documents/GitLab/datasciencewithr")
+# gösterilen dizine gider
+
+# içerisinde bulunduğumuz dizindeki dosyalar görüntülenir
+dir()
+# bulunduğumuz dizinde aradığımız dosya var mı yok mu (True-False)
+file.exists("Untitled.Rmd")
+ls()
+# değişkeni veya fonksiyonu silebiliriz
+rm("a")
+# değişken veya fonksiyonları ls() ile görüntüleyebiliriz
+ls()
+
+
+```
+
+

@@ -1,0 +1,327 @@
+---
+title: "R Notebook"
+output:
+  pdf_document: default
+  pdataframe_document: default
+  html_notebook: default
+  word_document: default
+---
+
+#Veri setini yukleme
+```{r}
+#setwd("~/Desktop/datasciencewithr")
+#getwd()
+library(readr)
+library(dplyr)
+library(readr)
+mamography <- read_csv("odev_dataset.csv", 
+    col_types = cols(CaTypeO = col_skip(), 
+        ptid = col_skip()))
+#View(mamography)
+dataframe <- mamography
+cancer_c <- ifelse(mamography$cancer_c > 0.5, "Yes","No")
+dataframe <- select(dataframe, -c(cancer_c))
+dataframe <- cbind(dataframe,cancer_c)
+# veriye ilk bakis
+colnames(dataframe)
+nrow(dataframe)
+ncol(dataframe)
+head(dataframe)
+```
+#Veri seti On Isleme
+##Veri seti ozet istatistikleri
+```{r}
+# verisetinin ozetine ulastik
+#install.packages("dplyr")
+library("dplyr")
+summary(dataframe)
+glimpse(dataframe)
+```
+<!-- ##Verideki bos degerlere ulasma -->
+```{r}
+# 9 degerlerini bos deger yaptik
+dataframe[dataframe == 9] <- NA
+dataframe[dataframe == -99] <- NA
+# bos degerlerin indekslerini bulduk
+#which(is.na(dataframe))
+# kac tane bos deger olduguna ulastik
+sum(is.na(dataframe))
+```
+##Veri setindeki bos degerlerin gorsellestirilmesi
+```{r}
+
+#install.packages("VIM")
+library(VIM)     
+# eksiklikleri gozlemliyoruz
+# buradan birliktelik cikarimlari da yapilabilir
+aggr_plot <- aggr(dataframe, col=c('navyblue','red'), 
+                  numbers = TRUE, 
+                  sortVars = TRUE, 
+                  labels = names(dataframe), 
+                  cex.axis=.7, 
+                  gap=3, 
+                  ylab=c("Eksik Degerlerin Oransal Gosterimi",
+                         "Eksikligin Veri Seti Icindeki Yapisi"))
+```
+##Veri setindeki bos degerli kayitlarin temizlenmesi
+```{r}
+# eksik veri bulunduran kayıtları sildik
+dataframe <- na.omit(dataframe)
+# kac adet bos deger oldugunu bulduk
+sum(is.na(dataframe))
+# değişkenlerin özet istatistiklerine ulaştık
+library(funModeling)
+profiling_num(dataframe)
+
+```
+
+```{r}
+#plot(dataframe)
+# sürekli değikenlerin nasıl dağıldığını görselleştirdik
+plot_num(dataframe)
+```
+
+
+```{r}
+# kategorik değişkenler için kullanılan görselleştirme
+freq(dataframe)
+```
+
+##Test-Train ayrimi
+```{r}
+#install.packages("caret")
+library(caret)
+train_indeks <- createDataPartition(dataframe$cancer_c, p = 0.8, list = FALSE, times = 1)
+
+train <- dataframe[train_indeks,]
+test <- dataframe[-train_indeks,]
+
+train_x <- train %>% dplyr::select(-cancer_c)
+train_y <- train$cancer_c
+
+test_x <- test %>% dplyr::select(-cancer_c)
+test_y <- test$cancer_c
+# eğitim verisinin hem bagimli hem de bagimsiz degiskenlerini tuttugumuz bir dataframe
+training <- data.frame(train_x, cancer_c = train_y)
+head(training$cancer_c)
+as.numeric(training$cancer_c)-1
+# bir lineer model kuruldu
+model_lm <- lm(as.numeric(training$cancer_c)-1 ~ ., data = training)
+summary(model_lm)
+```
+#Lojistik Regresyon
+##Model
+```{r}
+# modelimizin bir lojistik regresyon olduğunu binomial değişkeni ile belirtiyoruz
+model_glm <- glm(cancer_c ~ ., 
+                 data = training, 
+                 family = "binomial")
+levels(training$cancer_c)[1]
+summary(model_glm)
+options(scipen = 9)
+```
+
+##Tahmin
+```{r}
+head(predict(model_glm))
+# predict fonksiyonu cancer_c olarak type="link" şeklinde çalışır
+# fakat type="link" olarak tahmin yapıldığında klasik regresyondaki gibi gözlem değerlerinin tahmini yapiliyor
+# fakat biz siniflandirma yaptigimiz icin bize her bir gozlem icin olasilik degerleri lazim
+# bunun icin type="response" dedik
+head(predict(model_glm, type = "response"))
+# 0 ve 1 arasındaki degerleri tahmin ettik
+ol <- predict(model_glm, type = "response")
+summary(ol)
+#gorsellestirdik
+hist(ol)
+
+```
+
+```{r}
+# train hatasını hesaplıyoruz
+model_glm_pred <- ifelse(predict(model_glm, type = "response") > 0.1, "Yes","No")
+head(model_glm_pred)
+table(model_glm_pred)
+```
+
+Siniflandirma Hatasi Tespiti ve Karmasiklik Matrisi
+```{r}
+# siniflandirma hatasinin tespiti icin fonksiyon yazdik
+class_err <- function(gercek, tahmin) {
+  
+  mean(gercek != tahmin)
+  
+}
+
+#yanlis siniflandirma orani
+class_err(training$cancer_c, model_glm_pred)
+#dogruluk orani - accuracy
+1-class_err(training$cancer_c, model_glm_pred)
+
+
+tb <- table(tahmin = model_glm_pred, 
+      gercek = training$cancer_c)
+# CI accuracy değerinin güven aralığı
+km <- confusionMatrix(tb, positive = "Yes")
+
+c(km$overall["Accuracy"], km$byClass["Sensitivity"])
+
+```
+## Tahminlerin Gorsellestirilmesi
+```{r}
+# bağımlı değişkenin en fazla bağımlı olduğu değişkenle ilişkisini görselleştirdik
+dataframe
+plot(as.numeric(training$cancer_c)-1 ~ bmi_c, data = training,
+     col = "darkorange",
+     pch = "I", 
+     ylim = c(-0.2, 1))
+
+abline(h = 0, lty = 3)
+abline(h = 1, lty = 3)
+abline(h = 0.5, lty = 2)
+
+model_glm <- glm(cancer_c~ bmi_c, 
+                 data = training, 
+                 family = "binomial")
+# görselleştirme için tahminimizi sadece bmi_c değişkenine göre yapıyoruz
+curve(predict(model_glm, data.frame(bmi_c = x), type ="response"),
+              add = TRUE,
+              lwd = 3,
+              col = "dodgerblue")
+
+```
+
+## ROC Egrisi
+```{r}
+model_glm <- glm(cancer_c~ ., 
+                 data = training, 
+                 family = "binomial")
+
+# bu sefer test verimizi tahmin ettik
+test_ol <- predict(model_glm, newdata = test_x, type = "response")
+#install.packages("pROC")
+library(pROC)
+a <- roc(test_y ~ test_ol, plot = TRUE, print.auc = TRUE)
+a$auc
+
+
+```
+
+
+## Model Tuning - Model Optimizasyonu
+```{r}
+# metodumuz cross-validation
+#10 tekrardan oluşacak
+ctrl <- trainControl(method = "cv", 
+                     number = 10, 
+                     summaryFunction = twoClassSummary,
+                     classProbs = TRUE,
+                     savePredictions = TRUE)
+
+glm_tune <- train(train_x, 
+                  train_y, 
+                  method = "glm",
+                  trControl = ctrl)
+ 
+glm_tune
+
+head(glm_tune$pred,10)
+head(glm_tune$pred$Yes)
+
+# accuracy değerine ulaşabildik
+defaultSummary(data.frame(obs = test_y, 
+                          pred = predict(glm_tune, test_x)))
+# burada görüldüğü gibi optimize edilmeye çalışılan model tüm değerlere no dedi ve %94 doğruluk oranına düştü
+confusionMatrix(data = predict(glm_tune, train_x),
+                reference = train_y, positive = "Yes")
+
+confusionMatrix(data = predict(glm_tune, test_x),
+                reference = test_y, positive = "Yes")
+
+
+roc(glm_tune$pred$obs,
+    glm_tune$pred$Yes,
+    levels = rev(levels(glm_tune$pred$obs)),
+    plot = TRUE, print.auc = TRUE)
+
+
+```
+
+
+# KNN
+## Model
+```{r}
+# knn kategorik degiskenlerle calismaktadir bunun icin ya donusum yapilir ya da o kategorik degisken verisetinden cikarilir.
+train_indeks <- createDataPartition(df$cancer_c, p = 0.8, list = FALSE, times = 1)
+
+train <- df[train_indeks,]
+test <- df[-train_indeks,]
+
+train_x <- train %>% dplyr::select(-cancer_c)
+train_y <- train$cancer_c
+
+test_x <- test %>% dplyr::select(-cancer_c)
+test_y <- test$cancer_c
+
+training <- data.frame(train_x, cancer_c = train_y)
+
+knn_train <- train
+knn_test <- test
+
+knn_train <- knn_train %>% select(-cancer_c)
+knn_test <- knn_test %>% select(-cancer_c)
+# knn fonksiyonu lojistik regresyon fonksiyonundan farkli degerlerle calisir
+#install.packages("FNN")
+library("FNN")
+knn_fit <- knn(train = knn_train, test = knn_test, cl = train_y, k = 3)
+summary(knn_fit)
+
+
+
+```
+
+
+## Tahmin
+```{r}
+
+class_err <- function(gercek, tahmin) {
+  
+  mean(gercek != tahmin)
+  
+}
+# test hatasini bulduk
+class_err(test_y, knn_fit)
+
+knn_fit3 <- knn(train = knn_train, test = knn_test, cl = train_y, k = 3)
+knn_fit5 <- knn(train = knn_train, test = knn_test, cl = train_y, k = 5)
+knn_fit10 <- knn(train = knn_train, test = knn_test, cl = train_y, k = 10)
+# goruldugu gibi farklı k degerleri icin farkli hata degerleri bulduk
+class_err(test_y, knn_fit10)
+
+```
+
+## Model Tuning - Model Optimizasyonu
+```{r}
+ctrl <- trainControl(method = "cv", 
+                     number = 10, 
+                     summaryFunction = twoClassSummary,
+                     classProbs = TRUE,
+                     savePredictions = TRUE)
+# bir arama vektoru olusturuldu
+knn_grid <- data.frame(k = c(4*(0:5)+1, 20*(1:5)+1, 50*(2:9)+1))
+# 451 komsuluk degerinin en iyisi oldugu soylenmis
+knn_tune <- train(knn_test, test_y,
+                  method = "knn",
+                  metric = "ROC",
+                  preProc = c("center", "scale"),
+                  trControl = ctrl,
+                  tuneGrid = knn_grid)
+
+plot(knn_tune)
+ 
+knn_tune$bestTune
+# en iyi k degeri secildi ve knn optimize edildi
+#confusionMatrix(predict(knn_tune, knn_test), knn_test, positive = "Yes")
+```
+
+

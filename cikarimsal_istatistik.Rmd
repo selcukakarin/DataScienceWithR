@@ -1,0 +1,504 @@
+---
+title: "R Notebook"
+output: html_notebook
+editor_options: 
+  chunk_output_type: console
+---
+
+
+
+# 1.Tek Orneklem T Testi
+
+## 1.1. Problem
+
+Hipotez nedir?
+
+H0: M  >= 170  
+H1: M  <  170
+
+## 1.2 Veri Seti
+
+```{r}
+
+olcumler <- c(17, 160, 234, 149, 145, 107, 197, 75, 201, 225, 211, 119, 
+              157, 145, 127, 244, 163, 114, 145,  65, 112, 185, 202, 146,
+              203, 224, 203, 114, 188, 156, 187, 154, 177, 95, 165, 50, 110, 
+              216, 138, 151, 166, 135, 155, 84, 251, 173, 131, 207, 121, 120)
+
+summary(olcumler)
+
+```
+
+
+## 1.3. Varsayim Kontrolu: Normalligi Nasil Olceriz? 
+```{r}
+
+#1. Histogram
+hist(olcumler)
+
+#2. Q-Q plot (or quantile-quantile plot)
+library(ggpubr)
+ggqqplot(olcumler)
+
+
+#3. Shapiro-Wilks
+shapiro.test(olcumler)
+
+```
+
+
+## 1.4.Hipotez Testi
+```{r}
+summary(olcumler)
+t.test(olcumler, mu = 170, alternative = "less", conf.level = 0.95)
+```
+
+
+## 1.5 Alternatif Fonksiyon
+```{r}
+#install.packages("inferr")
+library(inferr)
+df <- data.frame(olcumler)
+infer_os_t_test(df, olcumler, mu = 170, type = all)
+```
+
+
+## 1.6. Nonparametrik Karsiligi
+```{r}
+#install.packages("DescTools")
+library(DescTools)
+SignTest(c(1,1,1,1,1,1,1,1,1,1,1,1,10), mu = 4)
+shapiro.test(c(1,1,1,1,1,1,1,1,1,1,1,1,10,9,10))
+```
+
+
+
+# 2. Tek Orneklem Oran Testi
+
+## 2.1 Problem
+
+## 2.2 Veri Seti
+
+500 kisi dis merada reklamlara tiklamis.
+40 tanesi alisveris.
+Donusum orani: 40/500 = 0,08
+
+## 2.3 Varsayim
+
+n > 30
+
+## 2.4 Hipotez Testi
+```{r}
+prop.test(x = 40, n = 500, p = 0.05, alternative = "greater")
+```
+
+
+
+# 3. Bagimsiz Iki Orneklem T Testi
+
+## 3.1. Problem
+
+Hipotez nedir?
+
+H0: M1  =  M2
+H1: M1 !=  M2
+
+
+## 3.2. Veri Seti
+
+```{r}
+
+iki_ornek_veri <- data.frame(
+  
+  A = c(30,27,21,27,29,30,20,20,27,32,35,22,24,23,25,27,23,27,23,
+        25,21,18,24,26,33,26,27,28,19,25),
+  
+  B = c(37,39,31,31,34,38,30,36,29,28,38,28,37,37,30,32,31,31,27,
+        32,33,33,33,31,32,33,26,32,33,29)
+)
+
+
+#install.packages("funModeling")
+library(funModeling)
+
+profiling_num(iki_ornek_veri)
+
+library(tidyverse)
+
+ggplot(iki_ornek_veri, aes(A,B)) + 
+  geom_boxplot()
+
+
+View(iki_ornek_veri)
+
+A <- data.frame(degerler = iki_ornek_veri$A, sinif = "A")
+B <- data.frame(degerler = iki_ornek_veri$B, sinif = "B")
+
+AB <- rbind(A,B)
+
+
+ggplot(AB, aes(sinif, degerler, fill = sinif)) + 
+  geom_boxplot()
+
+```
+
+
+## 3.3. Varsayim Kontrolu
+
+### 3.3.1. Normalligin Incelenmesi
+
+```{r}
+
+ggplot(AB, aes(degerler, fill = sinif)) +
+  geom_histogram(color = "black", binwidth = 5, alpha = 0.5) +
+  facet_grid(sinif ~.)
+
+
+ggplot(AB, aes(degerler, fill = sinif)) +
+  geom_histogram(aes(y = ..density..), color = "black", binwidth = 5, alpha = 0.5) +
+  geom_density(alpha = 0.3) +
+  facet_grid(sinif ~.)
+
+
+#numerik test 
+apply(iki_ornek_veri, 2, shapiro.test)
+
+AB[AB$sinif == "A",]$degerler
+
+shapiro.test(AB[AB$sinif == "B",]$degerler)
+
+```
+
+### 3.3.2. Varyans Homojenliginin Incelenmesi
+```{r}
+library(car)
+
+leveneTest(AB$degerler ~ AB$sinif, center = mean)
+```
+
+## 3.4. Hipotez Testi
+```{r}
+
+t.test(AB$degerler~AB$sinif, var.equal = TRUE)
+
+```
+
+## 3.5 Alternatif Fonksiyon
+```{r}
+
+infer_ts_ind_ttest(data = AB, x = sinif, y = degerler)
+
+```
+
+
+## 3.6 Nonparametrik Karsiligi  Mann - Whitney U
+```{r}
+
+wilcox.test(iki_ornek_veri$A,iki_ornek_veri$B )
+
+```
+
+
+
+# 4. Bagimli Iki Orneklem T Testi
+
+## 4.1. Problem
+
+Hipotez nedir?
+
+H0: M0  =  MS
+H1: M0 !=  MS
+
+## 4.2 Veri Seti
+
+```{r}
+
+oncesi <- c(123,119,119,116,123,123,121,120,117,118,121,121,123,119,
+            121,118,124,121,125,115,115,119,118,121,117,117,120,120,
+            121,117,118,117,123,118,124,121,115,118,125,115)
+
+sonrasi <- c(118,127,122,132,129,123,129,132,128,130,128,138,140,130,
+             134,134,124,140,134,129,129,138,134,124,122,126,133,127,
+             130,130,130,132,117,130,125,129,133,120,127,123)
+
+
+A <- data.frame(ort_sat = oncesi, ONCE_SONRA = "ONCE")
+B <- data.frame(ort_sat = sonrasi, ONCE_SONRA = "SONRA")
+
+once_sonra <- rbind(A,B)
+
+once_sonra
+
+profiling_num(once_sonra)
+
+
+once_sonra %>% 
+  group_by(ONCE_SONRA) %>%
+  summarise(mean(ort_sat),sd(ort_sat), var(ort_sat))
+
+
+ggplot(once_sonra, aes(ONCE_SONRA, ort_sat)) +
+  geom_boxplot()
+
+
+```
+
+
+
+
+## 4.3 Normallik Varsayimi
+```{r}
+
+apply(data.frame(oncesi, sonrasi), 2, shapiro.test)
+
+```
+
+
+## 4.4 Hipotez Testi
+```{r}
+t.test(once_sonra$ort_sat ~ once_sonra$ONCE_SONRA, paired = TRUE)
+
+```
+
+
+## 4.5 Alternatif Fonksiyon
+```{r}
+
+df <- data.frame(oncesi, sonrasi)
+infer_ts_paired_ttest(df, x = oncesi, y = sonrasi)
+
+```
+
+## 4.6 Nonparametrik Karsiligi: Wilcoxon Sign-Rank
+```{r}
+
+wilcox.test(df$oncesi, df$sonrasi, paired = TRUE)
+
+```
+
+
+
+# 5. Iki Orneklem Oran Testi
+
+## 5.1 Problem
+
+Butonlarin renkleri degistirilmek isteniyor yesil mi kirmizi mi?
+
+## 5.2 Veri Seti
+
+Yesil Buton: 300 tiklanma 1000 goruntulenme
+Kirmizi Buton: 250 tiklanma 1100 goruntulenme
+
+## 5.3 Varsayim
+
+
+
+## 5.4 Hipotez Testi
+```{r}
+
+prop.test(x = c(300, 250), n = c(1000, 1100))
+
+```
+
+
+
+
+
+
+# 6. Tek Yonlu Varyans Analizi
+
+Ikiden fazla grup karsilastirilmak istendiginde kullanilir.
+
+## 6.1 Problem
+
+Hipotez Nedir?
+
+H0: M1 = M2 = M3 (grup ortalamalari arasinda ist anl. farklilik yoktur)
+H1: Fark vardir.
+
+## 6.2 Veri Seti
+
+```{r}
+
+A <- c(28,33,30,29,28,29,27,31,30,32,28,33,25,29,27,31,31,30,31,34,30,32,31,34,28,32,31,28,33,29)
+
+B <- c(31,32,30,30,33,32,34,27,36,30,31,30,38,29,30,34,34,31,35,35,33,30,28,29,26,37,31,28,34,33)
+
+C <- c(40,33,38,41,42,43,38,35,39,39,36,34,35,40,38,36,39,36,33,35,38,35,40,40,39,38,38,43,40,42)
+
+
+A <- data.frame(SURE = A, GRUP = "A")
+
+B <- data.frame(SURE = B, GRUP = "B")
+
+C <- data.frame(SURE = C, GRUP = "C")
+
+
+veri <- rbind(A,B)
+
+veri <- rbind(veri, C)
+
+
+veri %>% group_by(GRUP) %>%
+  summarise(mean(SURE), median(SURE), sd(SURE))
+
+
+ggplot(veri, aes(GRUP, SURE, fill = GRUP)) +
+  geom_boxplot()
+
+```
+
+
+## 6.3 Varsayim 
+
+### 6.3.1. Normal Dagilim
+
+```{r}
+shapiro.test(veri[veri$GRUP == "A",]$SURE)
+
+shapiro.test(veri[veri$GRUP == "B",]$SURE)
+
+shapiro.test(veri[veri$GRUP == "C",]$SURE)
+
+```
+
+### 6.3.2. Varyans Homojenligi Testi
+
+```{r}
+
+bartlett.test(SURE ~ GRUP, data = veri)
+leveneTest(SURE ~ GRUP, data = veri)
+
+```
+
+
+## 6.4 Hipotez Testi
+```{r}
+
+aov(SURE ~ GRUP, data = veri)
+
+summary(aov(SURE ~ GRUP, data = veri))
+
+```
+
+
+## 6.5 Ikili Karsilastirma
+```{r}
+
+TukeyHSD(aov(SURE ~ GRUP, data = veri))
+
+```
+
+
+## 6.6 Alternatif Fonksiyon
+```{r}
+
+infer_oneway_anova(veri, SURE, GRUP)
+
+```
+
+
+## 6.7 Nonparametrik Karsilik: Kruskal-Wallis H
+```{r}
+
+kruskal.test(SURE ~ GRUP, veri)
+```
+
+
+
+# 7. Korelasyon
+
+## 7.1 Problem
+
+## 7.2 Veri Seti
+
+```{r}
+df <- mtcars
+head(df)
+
+library(ggpubr)
+ggscatter(df, x = "mpg", y ="wt",
+          add = "reg.line", 
+          conf.int = TRUE,
+          cor.coef = TRUE, 
+          cor.method = "pearson")
+
+```
+
+## 7.3 Varsayim
+
+```{r}
+
+shapiro.test(df$mpg)
+shapiro.test(df$wt)
+
+```
+
+
+## 7.4 Hipotez Testi ve Test Istatistigi
+```{r}
+
+cor.test(df$wt, df$mpg, method = "pearson")
+
+```
+
+
+## 7.5 Nonparametrik Karsiligi 
+```{r}
+cor.test(df$mpg, df$wt, method = "kendall")
+```
+
+
+## 7.6 Korelasyon Matrisi
+```{r}
+cor(df)
+
+cor(df, use = "complete.obs")
+
+library(Hmisc)
+
+rcorr(as.matrix(df))
+
+```
+
+
+
+## 7.7 Gelismis Korelasyon Matrisi
+
+```{r}
+
+install.packages("PerformanceAnalytics")
+library(PerformanceAnalytics)
+
+df <- mtcars[, c(1,3,4,5,6,7)]
+
+chart.Correlation(df, histogram = TRUE, pch = 19)
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

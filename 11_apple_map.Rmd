@@ -1,0 +1,58 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+Apply ve Map Fonksiyonlari
+```{r}
+
+df <- mpg[ ,c("displ","cyl","cty")]
+
+apply(df, 2,sum)
+
+sum(df$displ)
+
+
+
+
+l <- list(a = rnorm(90, 1,2), 
+          b = rbeta(10,1,2), 
+          c = 1:5000 )
+
+l
+
+
+sapply(l, mean)
+
+library(tidyverse)
+
+mtcars %>%
+  split(.$cyl) %>% # from base R
+  map(~ lm(mpg ~ wt, data = .)) %>%
+  map(summary) %>%
+  map_dbl("r.squared")
+
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

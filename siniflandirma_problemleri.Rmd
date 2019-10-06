@@ -1,0 +1,1414 @@
+---
+title: "R Notebook"
+output: html_notebook
+editor_options: 
+  chunk_output_type: inline
+---
+
+# Kutuphaneler
+
+```{r}
+
+#install.packages("ISLR")
+library(ISLR)
+#install.packages("tidyverse")
+library(tidyverse)
+#install.packages("funModeling")
+library(funModeling)
+#install.packages("caret")
+library(caret)
+#install.packages("pROC")
+library(pROC)
+#install.packages("class")
+library(class)#knn icin
+#install.packages("e1071")
+library(e1071)#knn icin
+#install.packages("kernlab")
+library(kernlab) #svm icin
+#install.packages("ROCR")
+library(ROCR) #roc icin
+#install.packages("neuralnet")
+library(neuralnet)
+#install.packages("GGally")
+library(GGally)
+#install.packages("nnet")
+library(nnet)
+#install.packages("rpart")
+library(rpart)
+#install.packages("cli")
+library(cli)
+#install.packages("tree")
+library(tree)
+#install.packages("rpart.plot")
+library(rpart.plot)
+#install.packages("randomForest")
+library(randomForest)
+#install.packages("gbm")
+library(gbm)
+#install.packages("xgboost")
+library(xgboost)
+#install.packages("DiagrammeR")
+library(DiagrammeR)
+#install.packages("mlbench")
+library(mlbench)
+
+
+```
+
+
+
+# Lojistik Regresyon
+
+Neden dogrusal regresyon degil?
+
+
+Veriye Ilk Bakis 
+```{r}
+df <- Default
+
+glimpse(df)
+library(funModeling)
+profiling_num(df)
+plot_num(df)
+freq(df)
+
+```
+
+Train Test Ayrimi
+```{r}
+# veri seti içerisinde gezinip %80'ini indeksledik gibi düþünebiliriz
+train_indeks <- createDataPartition(df$default, p = 0.8, list = FALSE, times = 1)
+
+train <- df[train_indeks,]
+test <- df[-train_indeks,]
+
+train_x <- train %>% dplyr::select(-default)
+train_y <- train$default
+
+test_x <- test %>% dplyr::select(-default)
+test_y <- test$default
+
+training <- data.frame(train_x, default = train_y)
+
+
+```
+
+
+
+
+Dogrusal Regresyon ile Siniflandirma
+```{r}
+
+head(training$default)
+as.numeric(training$default)-1
+
+model_lm <- lm(as.numeric(training$default)-1 ~ balance, data = training)
+summary(model_lm)
+
+head(model_lm$fitted.values,10)
+summary(model_lm$fitted.values)
+
+plot(as.numeric(training$default)-1 ~ balance, data = training,
+     col = "darkorange",
+     pch = "I", 
+     ylim = c(-0.2, 1))
+
+abline(h = 0, lty = 3)
+abline(h = 1, lty = 3)
+abline(h = 0.5, lty = 2)
+abline(model_lm, lwd = 3, col = "dodgerblue")
+
+
+```
+
+
+
+
+## Model 
+
+```{r}
+
+model_glm <- glm(default~., 
+                 data = training, 
+                 family = "binomial")
+
+levels(training$default)[1]
+
+
+summary(model_glm)
+options(scipen = 9)
+
+# kurulan modeldeki katsayilari cekme
+coef(model_glm)
+
+```
+
+## Tahmin
+```{r}
+head(predict(model_glm))
+# predict fonksiyonu default olarak type="link" þeklinde çalýþýr
+# fakat type="link" olarak tahmin yapýldýðýnda klasik regresyondaki gibi gözlem deðerlerinin tahmini yapiliyor
+# fakat biz siniflandirma yaptigimiz icin bize her bir gozlem icin olasilik degerleri lazim
+# bunun icin type="response" dedik
+head(predict(model_glm, type = "response"))
+# 0 ve 1 arasýndaki degerleri tahmin ettik
+ol <- predict(model_glm, type = "response")
+summary(ol)
+#gorsellestirdik
+hist(ol)
+
+model_glm_pred <- ifelse(predict(model_glm, type = "response") > 0.5, "Yes","No")
+head(model_glm_pred)
+table(model_glm_pred)
+
+```
+
+
+Siniflandirma Hatasi Tespiti ve Karmasiklik Matrisi
+```{r}
+
+class_err <- function(gercek, tahmin) {
+  
+  mean(gercek != tahmin)
+  
+}
+
+#yanlis siniflandirma orani
+class_err(training$default, model_glm_pred)
+
+1-class_err(training$default, model_glm_pred)
+
+
+tb <- table(tahmin = model_glm_pred, 
+      gercek = training$default)
+
+km <- confusionMatrix(tb, positive = "Yes")
+
+c(km$overall["Accuracy"], km$byClass["Sensitivity"])
+
+
+
+```
+
+
+## Tahminlerin Gorsellestirilmesi
+```{r}
+
+plot(as.numeric(training$default)-1 ~ balance, data = training,
+     col = "darkorange",
+     pch = "I", 
+     ylim = c(-0.2, 1))
+
+abline(h = 0, lty = 3)
+abline(h = 1, lty = 3)
+abline(h = 0.5, lty = 2)
+
+model_glm <- glm(default~ balance, 
+                 data = training, 
+                 family = "binomial")
+
+curve(predict(model_glm, data.frame(balance = x), type ="response"),
+              add = TRUE,
+              lwd = 3,
+              col = "dodgerblue")
+
+
+
+
+
+
+
+
+```
+
+
+## ROC Egrisi
+
+```{r}
+model_glm <- glm(default~ ., 
+                 data = training, 
+                 family = "binomial")
+
+
+test_ol <- predict(model_glm, newdata = test_x, type = "response")
+
+a <- roc(test_y ~ test_ol, plot = TRUE, print.auc = TRUE)
+a$auc
+
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+## Model Tuning
+```{r}
+
+ctrl <- trainControl(method = "cv", 
+                     number = 10, 
+                     summaryFunction = twoClassSummary,
+                     classProbs = TRUE,
+                     savePredictions = TRUE)
+
+
+
+glm_tune <- train(train_x, 
+                  train_y, 
+                  method = "glm",
+                  trControl = ctrl)
+ 
+glm_tune
+
+head(glm_tune$pred$Yes)
+
+
+defaultSummary(data.frame(obs = test_y, 
+                          pred = predict(glm_tune, test_x)))
+
+#egitim
+confusionMatrix(data = predict(glm_tune, train_x),
+                reference = train_y, positive = "Yes")
+
+confusionMatrix(data = predict(glm_tune, test_x),
+                reference = test_y, positive = "Yes")
+
+
+roc(glm_tune$pred$obs,
+    glm_tune$pred$Yes,
+    levels = rev(levels(glm_tune$pred$obs)),
+    plot = TRUE, print.auc = TRUE)
+
+
+```
+
+
+# KNN
+
+
+## Model
+
+```{r}
+
+train_indeks <- createDataPartition(df$default, p = 0.8, list = FALSE, times = 1)
+
+train <- df[train_indeks,]
+test <- df[-train_indeks,]
+
+train_x <- train %>% dplyr::select(-default)
+train_y <- train$default
+
+test_x <- test %>% dplyr::select(-default)
+test_y <- test$default
+
+training <- data.frame(train_x, default = train_y)
+
+
+
+knn_train <- train
+knn_train <- test
+
+
+knn_train$student <- as.numeric(knn_train$student)
+knn_test$student <- as.numeric(knn_test$student)
+
+knn_train <- knn_train %>% select(-default)
+knn_test <- knn_test %>% select(-default)
+
+
+knn_fit <- knn(train = knn_train, test = knn_test, cl = train_y, k = 3)
+
+summary(knn_fit)
+
+
+
+```
+
+
+## Tahmin
+
+```{r}
+
+class_err <- function(gercek, tahmin) {
+  
+  mean(gercek != tahmin)
+  
+}
+
+class_err(test_y, knn_fit)
+
+knn_fit3 <- knn(train = knn_train, test = knn_test, cl = train_y, k = 3)
+knn_fit5 <- knn(train = knn_train, test = knn_test, cl = train_y, k = 5)
+knn_fit10 <- knn(train = knn_train, test = knn_test, cl = train_y, k = 10)
+
+class_err(test_y, knn_fit10)
+
+```
+
+
+
+
+
+
+
+## Model Tuning
+
+```{r}
+ctrl <- trainControl(method = "cv", 
+                     number = 10, 
+                     summaryFunction = twoClassSummary,
+                     classProbs = TRUE,
+                     savePredictions = TRUE)
+
+knn_grid <- data.frame(k = c(4*(0:5)+1, 20*(1:5)+1, 50*(2:9)+1))
+
+knn_tune <- train(knn_train, train_y,
+                  method = "knn",
+                  metric = "ROC",
+                  preProc = c("center", "scale"),
+                  trControl = ctrl,
+                  tuneGrid = knn_grid)
+
+plot(knn_tune)
+ 
+knn_tune$bestTune
+
+confusionMatrix(predict(knn_tune, knn_test), knn_test, positive = "Yes")
+```
+
+
+
+# Dogrusal SVM
+
+
+
+> Veri Seti 
+
+```{r}
+
+set.seed(10111)
+x <- matrix(rnorm(40), 20, 2)
+y <- rep(c(-1,1), c(10, 10))
+x[y == 1,] <- x[y == 1, ] + 1
+plot(x , col = y + 3, pch = 19)
+df <- data.frame(x, y = as.factor(y))
+
+
+
+```
+
+## Model 
+
+```{r}
+
+svm_fit <- svm(y ~ ., data = df, kernel = "linear", cost = 10, scale = FALSE)
+
+svm_fit
+print(svm_fit)
+summary(svm_fit)
+
+plot(svm_fit, df)
+
+```
+
+
+> Sinirlar, Destek Noktalari ve Katsayilarin Gorsellestirilmesi
+
+
+>> Gelismis Gorsel Hazirlik
+
+
+```{r}
+
+range(c(1,3,4,5,6,7,99))
+
+apply(df, 2, range)
+
+a <- seq(from = apply(df, 2, range)[1,1], to = apply(df, 2, range)[2,1], length = 5)
+
+b <- seq(from = apply(df, 2, range)[1,2], to = apply(df, 2, range)[2,2], length = 5)
+
+expand.grid(a,b)
+
+make_grid <- function(x, n = 75) {
+  g_range = apply(x, 2, range)
+  x1 = seq(from = g_range[1,1], to = g_range[2,1], length = n)
+  x2 = seq(from = g_range[1,2], to = g_range[2,2], length = n)
+  expand.grid(X1 = x1, X2 = x2)
+}
+
+x_grid <- make_grid(x)
+x_grid[1:10,]
+```
+
+
+
+
+>> Sinirlar, Destek Noktalari ve Katsayilarin Eklenmesi
+
+```{r}
+y_grid <- predict(svm_fit, x_grid)
+
+plot(x_grid,
+     col = c("red","blue")[as.numeric(y_grid)],
+     pch = 20,
+     cex = 0.2)
+
+points(x, col = y + 3, pch = 19)
+
+points(x[svm_fit$index,], pch, cex = 2)
+
+beta <- drop(t(svm_fit$coefs)%*%x[svm_fit$index,])
+beta
+
+b0 <- svm_fit$rho
+
+abline(b0 / beta[2], -beta[1] / beta[2])
+abline((b0 - 1) / beta[2], -beta[1] / beta[2], lty = 2)
+abline((b0 + 1) / beta[2], -beta[1] / beta[2], lty = 2)
+
+
+```
+
+
+## Tahmin
+
+```{r}
+predict(svm_fit)
+
+1-class_err(df$y, svm_fit$fitted)
+df$y <- ifelse(df$y == -1, 0, 1)
+svm_fit$fitted <- ifelse(svm_fit$fitted == -1, 0, 1)
+
+tb <- table(svm_fit$fitted, df$y)
+
+confusionMatrix(tb, positive = "1")
+
+```
+
+
+
+# Dogrusal Olmayan SVM 
+
+
+
+> Veri Seti
+
+Elements of Statistical Learning kitabindaki 
+ESL.mixture isimli veri seti kullanilacaktir.
+
+http://www-stat.stanford.edu/~tibs/ElemStatLearn/datasets/ESL.mixture.rda
+
+
+```{r}
+getwd()
+setwd("/Users/mvahit/Desktop")
+load(file = "ESL.mixture.rda")
+df <- ESL.mixture
+names(df)
+df$y
+table(df$y)
+
+rm(x,y)
+attach(df)
+
+
+```
+
+
+## Model 
+
+```{r}
+
+plot(x, col = y + 1)
+df <- data.frame(y = factor(y), x)
+
+n_svm_fit <- svm(factor(y)~., 
+                 data = df, 
+                 scale = FALSE,
+                 kernel = "radial", cost = 5)
+
+```
+
+
+> Gorsel
+
+```{r}
+
+x_grid <- expand.grid(X1 = px1, X2 = px2)
+y_grid <- predict(n_svm_fit, x_grid)
+
+
+plot(x_grid, 
+     col = as.numeric(y_grid), 
+     pch = 20, 
+     cex = .2) 
+
+points(x, col = y + 1, pch = 19)
+
+dv <- predict(n_svm_fit, x_grid, decision.values = TRUE)
+
+contour(px1, px2, 
+        matrix(attributes(dv)$decision, length(px1), length(px2)), 
+        level = 0, 
+        add = TRUE)
+
+
+contour(px1, px2, 
+        matrix(attributes(dv)$decision, length(px1), length(px2)), 
+        level = 0.5, 
+        add = TRUE, 
+        col = "blue", 
+        lwd = 2)
+
+
+```
+
+
+
+## Tahmin
+
+```{r}
+
+
+
+
+
+
+```
+
+
+## Model Tuning
+> Veri Seti
+
+```{r}
+data("segmentationData")
+
+df <- segmentationData
+as_tibble(df)
+glimpse(df)
+table(df$Class)
+
+svm_train <- df %>% filter(Case == "Train") %>% select(-Case)
+svm_test <- df %>% filter(Case == "Test") %>% select(-Case)
+
+svm_train_x <- svm_train %>% select(-Class)
+svm_train_y <- svm_train$Class
+
+svm_test_x <- svm_test %>% select(-Class)
+svm_test_y <- svm_test$Class
+
+
+set.seed(123)
+ctrl <- trainControl(method = "cv",
+                     summaryFunction = twoClassSummary,
+                     classProbs = TRUE)
+
+svm_grid <- expand.grid(sigma = c(0.01, 0.015, 0.2),
+                        C = c(0.75, 0.9, 1, 1.1, 1.25))
+
+svm_tune <- train(svm_train_x, svm_train_y,
+                   method = "svmRadial",
+                   metric = "ROC",
+                   tuneGrid = svm_grid,
+                   trControl = ctrl)
+plot(svm_tune)
+
+
+confusionMatrix(predict(svm_tune, svm_test_x),
+                svm_test_y, positive = "WS")
+
+
+test_prob <- predict(svm_tune, svm_test_x, type = "prob")
+test_prob$WS
+roc(svm_test_y ~ test_prob$WS, plot = TRUE, print.auc = TRUE)
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+# YSA
+
+> Veri Seti
+
+```{r}
+
+url <- "http://archive.ics.uci.edu/ml/machine-learning-databases//haberman/haberman.data"
+
+df <- read_csv(file = url, 
+    col_names = c("Age", "Operation_Year", "Number_Pos_Nodes", "Survival"))
+
+summary(df)
+
+df$Survival <- ifelse(df$Survival == 2, 0, 1)
+
+df$Survival <- factor(df$Survival)
+
+as_tibble(df)
+ggpairs(df)
+
+table(df$Survival)
+
+table(df$Survival) / length(df$Survival)
+freq(df)
+
+
+scale01 <- function(x) {
+    (x - min(x))/(max(x) - min(x))
+}
+
+
+df <- df %>% mutate(Age = scale01(Age),
+                    Operation_Year = scale01(Operation_Year),
+                    Number_Pos_Nodes = scale01(Number_Pos_Nodes))
+
+
+
+train_indeks <- createDataPartition(df$Survival, 
+                                  p = .7, 
+                                  list = FALSE, 
+                                  times = 1)
+
+train <- df[train_indeks,]
+test  <- df[-train_indeks,]
+
+ysa_train_x <- train %>% dplyr::select(-Survival)
+ysa_train_y <- train$Survival
+
+ysa_test_x <- test %>% dplyr::select(-Survival)
+ysa_test_y <- test$Survival
+
+levels(train$Survival) <- make.names(levels(factor(train$Survival)))
+ysa_train_y <- train$Survival
+
+
+```
+
+## Model 
+
+```{r}
+set.seed(800)
+nnet_fit <- nnet(Survival ~., df, size = 3, decay = 0.1)
+
+```
+
+
+
+
+
+
+
+
+## Tahmin
+
+```{r}
+head(predict(nnet_fit, ysa_train_x))
+head(predict(nnet_fit, ysa_train_x, type = "class"))
+
+pred <- predict(nnet_fit, ysa_test_x, type = "class")
+pred 
+
+confusionMatrix(factor(pred), ysa_test_y, positive = "1")
+
+
+
+
+```
+
+
+## Model Tuning
+
+```{r}
+
+ctrl <- trainControl(method="cv",
+                     summaryFunction = twoClassSummary,
+                     classProbs = TRUE)
+
+
+nnetGrid <- expand.grid(size = 1:10,
+                         decay = c(0, 0.1, 1, 2))
+
+maxSize <- max(nnetGrid$size)
+
+numWts <- 1*(maxSize * (length(ysa_train_x) + 1) + maxSize + 1)
+
+
+nnet_tune <- train(
+  ysa_train_x, ysa_train_y,
+  method = "nnet",
+  metric = "ROC",
+  tuneGrid = nnetGrid,
+  trace = FALSE, 
+  maxit = 2000,
+  MaxNWts = numWts,
+  trControl = ctrl
+  
+)
+plot(nnet_tune)
+pred <- predict(nnet_tune, ysa_test_x)
+pred <- ifelse(pred == "X1", 1, 0)
+
+
+
+confusionMatrix(factor(pred), ysa_test_y, positive = "1")
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# CART
+
+## Model
+
+> Veri Seti
+
+```{r}
+library(ISLR)
+data(Carseats)
+df <- Carseats
+str(df)
+summary(df)
+hist(df$Sales)
+df$Sales <- as.factor(ifelse(df$Sales <= 8, "Low", "High"))
+
+
+set.seed(123)
+train_indeks <- createDataPartition(df$Sales, 
+                                  p = .8, 
+                                  list = FALSE, 
+                                  times = 1)
+
+
+train <- df[train_indeks,]
+test  <- df[-train_indeks,]
+
+
+train_x <- train %>% dplyr::select(-Sales)
+train_y <- train$Sales
+test_x <- test %>% dplyr::select(-Sales)
+test_y <- test$Sales
+
+
+#tek bir veri seti
+training <- data.frame(train_x, Sales = train_y)
+
+```
+
+
+
+
+> Model
+
+```{r}
+
+seat_tree <- tree(Sales~., data = train)
+summary(seat_tree)$used
+
+
+```
+
+> Agacin Gorsellestirilmesi
+
+```{r}
+
+plot(seat_tree)
+text(seat_tree, pretty = 0)
+
+```
+
+> rpart ile modelleme
+
+
+```{r}
+seat_rpart <- rpart(Sales ~ ., data = train, method = "class")
+
+
+plotcp(seat_rpart)
+
+min_cp <- seat_rpart$cptable[which.min(seat_rpart$cptable[,"xerror"]), "CP"]
+
+seat_rpart_prune <- prune(seat_rpart, cp = min_cp)
+
+prp(seat_rpart_prune, type = 1)
+rpart.plot(seat_rpart_prune)
+
+
+```
+
+
+## Tahmin
+
+
+```{r}
+predict(seat_tree, train_x, type = "class")
+
+predict(seat_tree, train_x, type = "vector")
+
+tb <- table(predict(seat_tree, train_x, type = "class"), train_y)
+
+confusionMatrix(tb, positive = "High")
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+## Model Tuning
+
+CV ile budama yaparak model tuning islemleri:
+```{r}
+seat_tree <- tree(Sales ~ . , data = train)
+
+set.seed(12312153)
+seat_tree_cv <- cv.tree(seat_tree, FUN = prune.misclass, K = 10)
+min_tree <- which.min(seat_tree_cv$dev)
+
+
+
+
+```
+
+> Gorsel Incelenmesi
+
+```{r}
+par(mfrow = c(1,2))
+plot(seat_tree_cv)
+plot(seat_tree_cv$size, 
+     seat_tree_cv$dev / nrow(train), 
+     type = "b",
+     xlab = "Agac Boyutu/Dugum Sayisi", ylab = "CV Yanlis Siniflandirma Orani")
+
+```
+
+
+
+> Bu Sonuclara Gore Agacin Budanmasi
+
+
+```{r}
+
+seat_tree_prune <- prune.misclass(seat_tree, best = 9)
+summary(seat_tree_prune)
+
+plot(seat_tree_prune)
+text(seat_tree_prune, pretty = 0)
+
+```
+
+
+> Sonuclarin Karsilastirilmasi
+
+```{r}
+
+tb <- table(predict(seat_tree_prune, test_x, type = "class"), test_y)
+confusionMatrix(tb, positive = "High")
+
+
+```
+
+## Caret ile Model Tuning
+
+
+```{r}
+
+#train control
+set.seed(123)
+ctrl <- trainControl(method="cv",
+                     summaryFunction = twoClassSummary,
+                     classProbs = TRUE)
+
+
+cart_tune <- train(
+  x = train_x,
+  y = train_y,
+  method = "rpart",
+  tuneLength = 50,
+  metric = "ROC",
+  trControl = ctrl)
+
+plot(cart_tune)
+
+tb <- table(predict(cart_tune, test_x), test_y)
+confusionMatrix(tb, positive = "High")
+
+
+
+
+```
+
+
+# RF
+
+
+> Veri Seti
+
+```{r}
+
+library(ISLR)
+
+data(Carseats)
+
+df <- Carseats
+
+
+df$Sales <- as.factor(ifelse(df$Sales > 8, "High", "Low"))
+set.seed(123)
+train_indeks <- createDataPartition(df$Sales, 
+                                  p = .8, 
+                                  list = FALSE, 
+                                  times = 1)
+
+train <- df[train_indeks,]
+test  <- df[-train_indeks,]
+
+
+train_x <- train %>% dplyr::select(-Sales)
+train_y <- train$Sales
+test_x <- test %>% dplyr::select(-Sales)
+test_y <- test$Sales
+
+
+#tek bir veri seti
+training <- data.frame(train_x, Sales = train_y)
+```
+
+
+## Model
+```{r}
+
+rf_fit <- randomForest(train_x, train_y, importance = TRUE)
+
+importance(rf_fit)
+
+varImpPlot(rf_fit)
+
+
+```
+
+
+## Tahmin
+```{r}
+predict(rf_fit, test_x)
+
+confusionMatrix(predict(rf_fit, test_x), test_y, positive = "High")
+
+```
+
+
+
+
+
+
+
+## Model Tuning
+
+
+```{r}
+#RANDOM SEARCH
+control <- trainControl(method='repeatedcv', 
+                        number = 10,
+                        search = 'random')
+
+#tunelenght ile 15 tane mtry degeri rastgele uretilecek 
+set.seed(1)
+rf_random <- train(Sales ~ .,
+                   data = train,
+                   method = 'rf',
+                   metric = 'Accuracy',
+                   tuneLength  = 15, 
+                   trControl = control)
+
+plot(rf_random)
+
+
+#GRID SEARCH
+control <- trainControl(method='cv', 
+                        number=10, 
+                        search='grid')
+ 
+tunegrid <- expand.grid(mtry = (1:10)) 
+
+rf_gridsearch <- train(Sales ~ ., 
+                       data = train,
+                       method = 'rf',
+                       metric = 'Accuracy',
+                       tuneGrid = tunegrid)
+
+plot(rf_gridsearch)
+
+confusionMatrix(predict(rf_gridsearch, test_x), test_y, positive = "High")
+
+
+
+```
+
+
+
+
+
+
+
+
+
+
+# GBM
+
+
+## Model 
+
+
+```{r}
+
+train$Sales <- as.numeric(train$Sales)
+train <- transform(train, Sales = Sales - 1)
+
+gbm_fit <- gbm(Sales~., data = train, 
+               shrinkage = 0.01,
+               distribution = "bernoulli",
+               cv.folds = 5,
+               n.trees = 3000,
+               verbose = F)
+
+summary(gbm_fit)
+
+gbm.perf(gbm_fit, method = "cv")
+plot.gbm(gbm_fit,  2, gbm.perf(gbm_fit, method = "cv"))
+```
+
+
+## Tahmin
+
+
+```{r}
+
+pred <- predict.gbm(gbm_fit, test_x, type = "response")
+head(pred)
+
+```
+
+
+
+
+
+
+## Model Tuning
+
+```{r}
+set.seed(123)
+ctrl <- trainControl(method="cv", number=10)
+
+
+gbm_grid <- expand.grid(
+  interaction.depth = seq(1, 7, by = 2),
+   n.trees = 200,
+    shrinkage = c(0.01, 0.1),
+    n.minobsinnode = c(1:10))
+
+gbm_grid <- data.frame(n.trees=2000, 
+                       shrinkage=0.01, 
+                       interaction.depth=1, 
+                       n.minobsinnode=1)
+
+gbm_tune <- train(
+  factor(Sales) ~., data = train,
+  method = "gbm",
+  distribution = "bernoulli",
+  trControl = ctrl,
+  verbose = F,
+  tuneGrid = gbm_grid
+)
+
+getTrainPerf(gbm_tune)
+
+
+pred<- predict(gbm_tune, test_x)
+gbm_class <- ifelse(pred == 0, "High", "Low")
+test_y
+
+confusionMatrix(factor(gbm_class), test_y)
+
+```
+
+
+
+
+
+
+# XGBoost 
+
+
+> Veri Seti 
+
+https://archive.ics.uci.edu/ml/datasets/Pima+Indians+Diabetes
+
+```{r}
+data(PimaIndiansDiabetes) 
+df <- PimaIndiansDiabetes
+
+glimpse(df)
+plot_num(df)
+freq(df) 
+
+
+set.seed(123)
+train_indeks <- createDataPartition(df$diabetes, 
+                                  p = .8, 
+                                  list = FALSE, 
+                                  times = 1)
+
+
+train <- df[train_indeks,]
+test  <- df[-train_indeks,]
+
+
+train_x <- train %>% dplyr::select(-diabetes)
+train_y <- train$diabetes
+test_x <- test %>% dplyr::select(-diabetes)
+test_y <- test$diabetes
+
+
+#tek bir veri seti
+training <- data.frame(train_x, diabetes = train_y)
+
+```
+
+
+
+
+## Model 
+
+
+```{r}
+
+train_y <- as.numeric(train_y)-1
+dtrain <- xgb.DMatrix(data = as.matrix(train_x), label = train_y)
+
+test_y <- as.numeric(test_y)-1
+dtest <- xgb.DMatrix(data = as.matrix(test_x), label = test_y)
+
+
+xgb_fit <- xgboost(data = dtrain, 
+        max.depth = 2,
+        eta = 1,
+        ntread = 2,
+        nrounds = 5,
+        objective = "binary:logistic",
+        verbose = 1)
+```
+
+
+
+> Performans Degerlendirme Metrigi Eklenmesi
+
+```{r}
+
+bst <- xgb.train(data = dtrain , 
+          max.depth = 2,
+          eta = 1,
+          ntread = 2,
+          nrounds = 5,
+          eval.metric = "error",
+          eval.metric = "logloss",
+          objective = "binary:logistic")
+
+```
+
+
+> Degisken Onem Duzeyleri ve Agac Yapilari
+
+Degisken Onem Duzeyleri
+```{r}
+
+mm <- xgb.importance(model = bst)
+xgb.plot.importance(mm)
+
+```
+
+
+Agac Yapilarinin Gorulmesi
+```{r}
+
+xgb.dump(bst, with_stats = T)
+xgb.plot.tree(model = bst)
+```
+
+
+## Tahmin
+
+```{r}
+
+predict(bst, as.matrix(test_x))
+
+
+```
+
+
+
+
+
+## Model Tuning 
+
+```{r}
+ctrl <- trainControl(method = "cv",
+                     number = 10,
+                     summaryFunction = twoClassSummary, 
+                     classProbs = TRUE)
+
+xgb_grid <- expand.grid(eta = c(0.05,0.03, 0.02), 
+                      nrounds = c(50, 75,100),  
+                      max_depth = 1:7,  
+                      min_child_weight = c(2.0, 2.25),  
+                      colsample_bytree = c(0.3, 0.4, 0.5), 
+                      gamma = 0, 
+                      subsample = 1)
+
+dim(xgb_grid)
+
+
+xgb_tune <- train(diabetes~., data = train,
+                  method = "xgbTree",
+                  tuneGrid = xgb_grid,
+                  trControl = ctrl,
+                  metric = "ROC")
+xgb_tune$bestTune
+plot(xgb_tune)
+
+pred <- predict(xgb_tune, test_x)
+pred <- ifelse(pred == "pos", 1,0)
+pred <- factor(pred)
+
+confusionMatrix(pred, factor(test_y), positive = "1")
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+## XGBoost'u Paralel Olarak Kullanmak
+
+```{r}
+
+#Onceki modelin calisma suresi
+system.time (xgb_tune <- train(diabetes~., 
+              data=train, 
+              method = "xgbTree", 
+              tuneGrid =xgb_grid,
+              trControl = ctrl, 
+              metric = "ROC"
+            ))
+
+
+#user  system elapsed 
+#121.611   0.423 122.916 
+
+#paralel hesaplama
+library(parallel)
+#install.packages("snow")
+library(snow)
+#install.packages("doSNOW")
+library(doSNOW)
+numberofcores <- detectCores()  
+cl <- makeCluster(numberofcores, type = "SOCK")
+# carete bildirmek
+registerDoSNOW(cl)
+
+system.time (xgb_tune2 <- train(diabetes~., 
+              data=train, 
+              method = "xgbTree", 
+              tuneGrid =xgb_grid,
+              trControl = ctrl, 
+              metric = "ROC"
+            ))
+
+
+#user  system elapsed 
+#1.548   0.155  23.200 
+
+  
+stopCluster(cl)
+detach("package:doSNOW", unload=TRUE)
+
+
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

@@ -1,0 +1,469 @@
+---
+title: "R Notebook"
+output:
+  pdataframe_heart_document: default
+  word_document: default
+  html_notebook: default
+editor_options: 
+  chunk_output_type: inline
+---
+
+#Veri setini yukleme
+```{r}
+#setwd("~/Desktop/datasciencewithr")
+#getwd()
+library(readr)
+library(dplyr)
+# heart <- read_csv("./odev_dataset.csv", 
+#     col_types = cols(CaTypeO = col_skip(), 
+#         biophx_c = col_skip(), cp = col_skip(), 
+#         compfilm_c = col_skip(), hrt_c = col_skip(), 
+#         mammtype = col_skip(), prvmam_c = col_skip(), 
+#         ptid = col_skip()))
+#View(heart)
+dataframe_heart <- heart
+target <- ifelse(dataframe_heart$target > 0.5, "Yes","No")
+dataframe_heart <- select(dataframe_heart, -c(target))
+dataframe_heart <- cbind(dataframe_heart,target)
+# veriye ilk bakis
+colnames(dataframe_heart)
+nrow(dataframe_heart)
+ncol(dataframe_heart)
+head(dataframe_heart)
+```
+#Veri seti On Isleme
+##Veri seti ozet istatistikleri
+```{r}
+# verisetinin ozetine ulastik
+#install.packages("dplyr")
+library(funModeling)
+profiling_num(dataframe_heart)
+plot_num(dataframe_heart)
+library(psych)
+describe(dataframe_heart)
+
+library(Hmisc)
+Hmisc::describe(dataframe_heart)
+
+#kategorik degiskenler icin
+freq(dataframe_heart)
+library("dplyr")
+summary(dataframe_heart)
+glimpse(dataframe_heart)
+```
+<!-- ##Verideki bos degerlere ulasma -->
+```{r}
+# 9 degerlerini bos deger yaptik
+dataframe_heart[dataframe_heart == 9] <- NA
+dataframe_heart[dataframe_heart == -99] <- NA
+# bos degerlerin indekslerini bulduk
+#which(is.na(dataframe_heart))
+# kac tane bos deger olduguna ulastik
+sum(is.na(dataframe_heart))
+```
+##Veri setindeki bos degerlerin gorsellestirilmesi
+```{r}
+
+#install.packages("VIM")
+library(VIM)     
+# eksiklikleri gozlemliyoruz
+# buradan birliktelik cikarimlari da yapilabilir
+aggr_plot <- aggr(dataframe_heart, col=c('navyblue','red'), 
+                  numbers = TRUE, 
+                  sortVars = TRUE, 
+                  labels = names(dataframe_heart), 
+                  cex.axis=.7, 
+                  gap=3, 
+                  ylab=c("Eksik Degerlerin Oransal Gosterimi",
+                         "Eksikligin Veri Seti Icindeki Yapisi"))
+```
+##Veri setindeki bos degerli kayitlarin temizlenmesi
+```{r}
+# eksik veri bulunduran kayýtlarý sildik
+dataframe_heart <- na.omit(dataframe_heart)
+# kac adet bos deger oldugunu bulduk
+sum(is.na(dataframe_heart))
+# deðiþkenlerin özet istatistiklerine ulaþtýk
+library(funModeling)
+profiling_num(dataframe_heart)
+#plot(dataframe_heart)
+# sürekli deðikenlerin nasýl daðýldýðýný görselleþtirdik
+plot_num(dataframe_heart)
+# kategorik deðiþkenler için kullanýlan görselleþtirme
+freq(dataframe_heart)
+```
+##Test-Train ayrimi
+```{r}
+#install.packages("caret")
+library(caret)
+train_indeks <- createDataPartition(dataframe_heart$target, p = 0.8, list = FALSE, times = 1)
+
+train <- dataframe_heart[train_indeks,]
+test <- dataframe_heart[-train_indeks,]
+
+train_x <- train %>% dplyr::select(-target)
+train_y <- train$target
+
+test_x <- test %>% dplyr::select(-target)
+test_y <- test$target
+# eðitim verisinin hem bagimli hem de bagimsiz degiskenlerini tuttugumuz bir dataframe_heart
+training <- data.frame(train_x, target = train_y)
+head(training$target)
+as.numeric(training$target)-1
+# bir lineer model kuruldu
+model_lm <- lm(as.numeric(training$target)-1 ~ ., data = training)
+summary(model_lm)
+```
+#Lojistik Regresyon
+##Model
+```{r}
+# modelimizin bir lojistik regresyon olduðunu binomial deðiþkeni ile belirtiyoruz
+model_glm <- glm(target ~ ., 
+                 data = training, 
+                 family = "binomial")
+levels(training$target)[1]
+summary(model_glm)
+options(scipen = 9)
+```
+
+##Tahmin
+```{r}
+head(predict(model_glm))
+# predict fonksiyonu target olarak type="link" þeklinde çalýþýr
+# fakat type="link" olarak tahmin yapýldýðýnda klasik regresyondaki gibi gözlem deðerlerinin tahmini yapiliyor
+# fakat biz siniflandirma yaptigimiz icin bize her bir gozlem icin olasilik degerleri lazim
+# bunun icin type="response" dedik
+head(predict(model_glm, type = "response"))
+# 0 ve 1 arasýndaki degerleri tahmin ettik
+ol <- predict(model_glm, type = "response")
+summary(ol)
+#gorsellestirdik
+hist(ol)
+# train hatasýný hesaplýyoruz
+model_glm_pred <- ifelse(predict(model_glm, type = "response") > 0.5, "Yes","No")
+head(model_glm_pred)
+table(model_glm_pred)
+
+```
+Siniflandirma Hatasi Tespiti ve Karmasiklik Matrisi
+```{r}
+# siniflandirma hatasinin tespiti icin fonksiyon yazdik
+class_err <- function(gercek, tahmin) {
+  
+  mean(gercek != tahmin)
+  
+}
+
+#yanlis siniflandirma orani
+class_err(training$target, model_glm_pred)
+#dogruluk orani - accuracy
+1-class_err(training$target, model_glm_pred)
+
+
+tb <- table(tahmin = model_glm_pred, 
+      gercek = training$target)
+# CI accuracy deðerinin güven aralýðý
+km <- confusionMatrix(tb, positive = "Yes")
+
+c(km$overall["Accuracy"], km$byClass["Sensitivity"])
+
+```
+## Tahminlerin Gorsellestirilmesi
+```{r}
+# baðýmlý deðiþkenin en fazla baðýmlý olduðu deðiþkenle iliþkisini görselleþtirdik
+dataframe_heart
+summary(model_glm)
+plot(as.numeric(training$target)-1 ~ cp, data = training,
+     col = "darkorange",
+     pch = "I", 
+     ylim = c(-0.2, 1))
+
+abline(h = 0, lty = 3)
+abline(h = 1, lty = 3)
+abline(h = 0.5, lty = 2)
+
+model_glm <- glm(target~ cp, 
+                 data = training, 
+                 family = "binomial")
+# görselleþtirme için tahminimizi sadece cp deðiþkenine göre yapýyoruz
+curve(predict(model_glm, data.frame(cp = x), type ="response"),
+              add = TRUE,
+              lwd = 3,
+              col = "dodgerblue")
+
+```
+
+## ROC Egrisi
+```{r}
+# roc eðrisinin birinci  argümaný  baðýmlý deðiþken ikinci argümaný ise model yardýmýyla tahmin edilen baðýmlý deðiþkenin tahmini deðerleri 
+model_glm <- glm(target~ ., 
+                 data = training, 
+                 family = "binomial")
+
+# bu sefer test verimizi tahmin ettik
+test_ol <- predict(model_glm, newdata = test_x, type = "response")
+#install.packages("pROC")
+library(pROC)
+a <- roc(test_y ~ test_ol, plot = TRUE, print.auc = TRUE)
+a$auc
+
+
+```
+
+
+## Model Tuning - Model Optimizasyonu
+```{r}
+# metodumuz cross-validation
+#10 tekrardan oluþacak
+ctrl <- trainControl(method = "cv", 
+                     number = 10, 
+                     summaryFunction = twoClassSummary,
+                     classProbs = TRUE,
+                     savePredictions = TRUE)
+
+glm_tune <- train(train_x, 
+                  train_y, 
+                  method = "glm",
+                  trControl = ctrl)
+ 
+glm_tune
+
+head(glm_tune$pred,10)
+head(glm_tune$pred$Yes)
+
+# accuracy deðerine ulaþabildik
+defaultSummary(data.frame(obs = test_y, 
+                          pred = predict(glm_tune, test_x)))
+# burada görüldüðü gibi optimize edilmeye çalýþýlan model tüm deðerlere no dedi ve %94 doðruluk oranýna düþtü
+confusionMatrix(data = predict(glm_tune, train_x),
+                reference = train_y, positive = "Yes")
+
+confusionMatrix(data = predict(glm_tune, test_x),
+                reference = test_y, positive = "Yes")
+
+
+roc(glm_tune$pred$obs,
+    glm_tune$pred$Yes,
+    levels = rev(levels(glm_tune$pred$obs)),
+    plot = TRUE, print.auc = TRUE)
+
+
+```
+
+
+# KNN
+## Model
+```{r}
+# knn kategorik deðiþkenlerle çalýþmamaktadýr bunun için ya dönüþüm yapýlýr ya da o kategorik deðiþken verisetinden çýkarýlýr.
+train_indeks <- createDataPartition(dataframe_heart$target, p = 0.8, list = FALSE, times = 1)
+
+train <- dataframe_heart[train_indeks,]
+test <- dataframe_heart[-train_indeks,]
+
+train_x <- train %>% dplyr::select(-target)
+train_y <- train$target
+
+test_x <- test %>% dplyr::select(-target)
+test_y <- test$target
+
+training <- data.frame(train_x, target = train_y)
+
+knn_train <- train
+knn_test <- test
+
+knn_train <- knn_train %>% select(-target)
+knn_test <- knn_test %>% select(-target)
+# knn fonksiyonu lojistik regresyon fonksiyonundan farkli degerlerle calisir
+#install.packages("FNN")
+library("FNN")
+knn_fit <- knn(train = knn_train, test = knn_test, cl = train_y, k = 3)
+summary(knn_fit)
+
+
+
+```
+
+
+## Tahmin
+```{r}
+
+class_err <- function(gercek, tahmin) {
+  
+  mean(gercek != tahmin)
+  
+}
+# test hatasini bulduk
+class_err(test_y, knn_fit)
+
+knn_fit3 <- knn(train = knn_train, test = knn_test, cl = train_y, k = 3)
+knn_fit5 <- knn(train = knn_train, test = knn_test, cl = train_y, k = 5)
+knn_fit10 <- knn(train = knn_train, test = knn_test, cl = train_y, k = 10)
+# goruldugu gibi farklý k degerleri icin farkli hata degerleri bulduk
+class_err(test_y, knn_fit10)
+
+```
+
+## Model Tuning - Model Optimizasyonu
+```{r}
+ctrl <- trainControl(method = "cv", 
+                     number = 10, 
+                     summaryFunction = twoClassSummary,
+                     classProbs = TRUE,
+                     savePredictions = TRUE)
+# bir arama vektoru olusturuldu
+knn_grid <- data.frame(k = c(4*(0:5)+1, 20*(1:5)+1, 50*(2:9)+1))
+# 13 komsuluk degerinin en iyisi oldugu soylenmis
+knn_tune <- train(knn_train, train_y,
+                  method = "knn",
+                  metric = "ROC",
+                  preProc = c("center", "scale"),
+                  trControl = ctrl,
+                  tuneGrid = knn_grid)
+
+plot(knn_tune)
+ 
+knn_tune$bestTune
+# en iyi k degeri secildi ve knn optimize edildi
+confusionMatrix(knn_tune$pred$pred, knn_tune$pred$obs, positive = "Yes")
+```
+
+
+
+# YSA
+
+> Veri Seti
+
+```{r}
+
+url <- "http://archive.ics.uci.edu/ml/machine-learning-databases//haberman/haberman.data"
+
+df <- read_csv(file = url, 
+    col_names = c("Age", "Operation_Year", "Number_Pos_Nodes", "Survival"))
+
+summary(df)
+
+df$Survival <- ifelse(df$Survival == 2, 0, 1)
+# factor ile kategorik degiskene cevirme islemi yaptik
+df$Survival <- factor(df$Survival)
+
+as_tibble(df)
+#install.packages("GGally")
+library(GGally)
+ggpairs(df)
+# siniflarin dagilimi - frekansi
+table(df$Survival)
+# sinif dagilimlarinin orani
+table(df$Survival) / length(df$Survival)
+freq(df)
+
+# yapay sinir agi modelini kullanabilmek icin bir standartlastirma islemi uygulanmali - bunun icin asagidaki fonksiyon kullanilir - 0-1 donusumu
+scale01 <- function(x) {
+    (x - min(x))/(max(x) - min(x))
+}
+
+
+df <- df %>% mutate(Age = scale01(Age),
+                    Operation_Year = scale01(Operation_Year),
+                    Number_Pos_Nodes = scale01(Number_Pos_Nodes))
+
+
+
+train_indeks <- createDataPartition(df$Survival, 
+                                  p = .7, 
+                                  list = FALSE, 
+                                  times = 1)
+
+train <- df[train_indeks,]
+test  <- df[-train_indeks,]
+
+ysa_train_x <- train %>% dplyr::select(-Survival)
+ysa_train_y <- train$Survival
+
+ysa_test_x <- test %>% dplyr::select(-Survival)
+ysa_test_y <- test$Survival
+
+levels(train$Survival) <- make.names(levels(factor(train$Survival)))
+ysa_train_y <- train$Survival
+
+
+```
+
+## Model 
+
+```{r}
+set.seed(800)
+# neural net modeli kurduk
+#install.packages("nnet")
+library(nnet)
+nnet_fit <- nnet(Survival ~., df, size = 3, decay = 0.1)
+
+```
+
+
+
+
+
+
+
+
+## Tahmin
+
+```{r}
+head(predict(nnet_fit, ysa_train_x))
+head(predict(nnet_fit, ysa_train_x, type = "class"))
+
+pred <- predict(nnet_fit, ysa_test_x, type = "class")
+pred 
+
+confusionMatrix(factor(pred), ysa_test_y, positive = "1")
+
+
+
+
+```
+
+
+## Model Tuning - Model Optimizasyonu
+
+```{r}
+
+ctrl <- trainControl(method="cv",
+                     summaryFunction = twoClassSummary,
+                     classProbs = TRUE)
+
+# burada 1den 10 a kadar gizli katman sayýsý denendi ve optimize sonuc bulundu
+# decay parametresi de asiri ogrenmenin onune gecemek icin kullanilir
+nnetGrid <- expand.grid(size = 1:10,
+                         decay = c(0, 0.1, 1, 2))
+
+maxSize <- max(nnetGrid$size)
+
+numWts <- 1*(maxSize * (length(ysa_train_x) + 1) + maxSize + 1)
+
+
+nnet_tune <- train(
+  ysa_train_x, ysa_train_y,
+  method = "nnet",
+  metric = "ROC",
+  tuneGrid = nnetGrid,
+  trace = FALSE, 
+  maxit = 2000,
+  MaxNWts = numWts,
+  trControl = ctrl
+  
+)
+plot(nnet_tune)
+pred <- predict(nnet_tune, ysa_test_x)
+pred <- ifelse(pred == "X1", 1, 0)
+
+
+
+confusionMatrix(factor(pred), ysa_test_y, positive = "1")
+
+```
+
+
+
+
+
+

@@ -1,0 +1,50 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+if-else, ifelse()
+```{r}
+
+a <- 4
+
+if(a > 5) {
+  
+  print("buyuk")
+  
+  
+} else if(a < 5){
+  
+  print("kucuk")
+}
+
+
+
+
+ifelse(a > 5, 6, 7)
+
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
